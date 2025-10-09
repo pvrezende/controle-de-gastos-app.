@@ -1,0 +1,51 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+### DEPENDÊNCIAS ###
+# Ignora node_modules em qualquer pasta (raiz, frontend, backend )
+node_modules/
+
+### EXPO ###
+# Pastas de cache e build do Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Metro bundler
+.metro-health-check*
+
+### NATIVE (ANDROID/IOS) ###
+# Pastas geradas para builds nativos
+/android
+/ios
+.kotlin/
+*.orig.*
+
+### ARQUIVOS SENSÍVEIS E DE AMBIENTE ###
+# Chaves de acesso e segredos
+*.pem
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+api-excluido.js
+
+# Arquivos de ambiente local
+.env
+.env.*
+!/.env.example
+
+### LOGS E DEBUG ###
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+### SISTEMA OPERACIONAL ###
+# macOS
+.DS_Store
+# Windows
+Thumbs.db
+
+### TYPESCRIPT ###
+*.tsbuildinfo
