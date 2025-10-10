@@ -34,21 +34,21 @@ const pool = mysql.createPool(dbConfig);
 const verifyToken = (req, res, next) => {
     const token = req.headers['authorization'];
     if (!token) {
-        return res.status(403).send('Um token é necessário para autenticação.');
+        return res.status(403).json({ message: 'Um token é necessário para autenticação.' });
     }
     try {
         const cleanToken = token.split(' ')[1];
         const decoded = jwt.verify(cleanToken, JWT_SECRET);
         req.userId = decoded.id;
     } catch (err) {
-        return res.status(401).send('Token inválido.');
+        return res.status(401).json({ message: 'Token inválido.' });
     }
     return next();
 };
 
 app.post("/login", async (req, res) => {
     const { username, password } = req.body;
-    if (!username || !password) return res.status(400).send("Usuário e senha são obrigatórios.");
+    if (!username || !password) return res.status(400).json({ message: "Usuário e senha são obrigatórios." });
     
     try {
         const [rows] = await pool.execute("SELECT * FROM usuario WHERE username = ?", [username]);
@@ -116,9 +116,10 @@ app.post("/parcelamentos", verifyToken, async (req, res) => {
     const { nome, valor_total, numero_parcelas, data_compra, data_primeira_parcela } = req.body;
     const userId = req.userId;
 
-    if (!nome || !valor_total || !numero_parcelas || !data_compra || !data_primeira_parcela) {
-        return res.status(400).send("Todos os campos são obrigatórios.");
+   if (!nome || !valor_total || !numero_parcelas || !data_compra || !data_primeira_parcela) {
+        return res.status(400).json({ message: "Todos os campos são obrigatórios." });
     }
+
 
     let connection;
     try {
@@ -147,7 +148,7 @@ app.post("/parcelamentos", verifyToken, async (req, res) => {
         }
 
         await connection.commit();
-        res.status(201).send({ message: "Compra parcelada registrada com sucesso!" });
+        res.status(201).json({ message: "Compra parcelada registrada com sucesso!" });
 
     } catch (err) {
         if (connection) await connection.rollback();
@@ -164,8 +165,9 @@ app.put("/parcelamentos/:id", verifyToken, async (req, res) => {
     const userId = req.userId;
 
     if (!nome || !categoria) {
-        return res.status(400).send("O nome e a categoria são obrigatórios.");
+        return res.status(400).json({ message: "O nome e a categoria são obrigatórios." });
     }
+
 
     let connection;
     try {
@@ -219,11 +221,11 @@ app.delete("/parcelamentos/:id", verifyToken, async (req, res) => {
 
         if (result.affectedRows === 0) {
             await connection.rollback();
-            return res.status(404).send("Parcelamento não encontrado ou não pertence ao usuário.");
+            return res.status(404).json({ message: "Parcelamento não encontrado ou não pertence ao usuário." });
         }
 
         await connection.commit();
-        res.status(200).send({ message: "Parcelamento e suas despesas foram excluídos." });
+        res.status(200).json({ message: "Parcelamento e suas despesas foram excluídos." });
 
     } catch (err) {
         if (connection) await connection.rollback();
@@ -281,8 +283,9 @@ app.put("/despesas/:id", verifyToken, async (req, res) => {
     const { nome, valor, data_vencimento, categoria } = req.body;
 
     if (!nome || !valor || !data_vencimento || !categoria) {
-        return res.status(400).send("Todos os campos são obrigatórios.");
+        return res.status(400).json({ message: "Todos os campos são obrigatórios." });
     }
+
 
     try {
         const [result] = await pool.execute(
@@ -291,7 +294,7 @@ app.put("/despesas/:id", verifyToken, async (req, res) => {
         );
 
         if (result.affectedRows === 0) {
-            return res.status(404).send("Despesa não encontrada ou não pertence ao usuário.");
+            return res.status(404).json({ message: "Despesa não encontrada ou não pertence ao usuário." });
         }
         res.status(200).json({ message: "Despesa atualizada com sucesso!" });
     } catch (err) {
@@ -308,9 +311,9 @@ app.delete("/despesas/:id", verifyToken, async (req, res) => {
             [id, req.userId]
         );
         if (result.affectedRows === 0) {
-            return res.status(404).send("Despesa não encontrada ou não pertence ao usuário.");
+            return res.status(404).json({ message: "Despesa não encontrada ou não pertence ao usuário." });
         }
-        res.status(200).send({ message: "Despesa excluída com sucesso!" });
+        res.status(200).json({ message: "Despesa excluída com sucesso!" });
     } catch (err) {
         console.error("Erro ao excluir despesa:", err);
         res.status(500).json({ message: "Erro ao excluir despesa" });
@@ -353,7 +356,7 @@ app.put("/metas/:id", verifyToken, async (req, res) => {
             [nome, valor_alvo, data_limite, id, req.userId]
         );
         if (result.affectedRows === 0) {
-            return res.status(404).send("Meta não encontrada ou não pertence ao usuário.");
+            return res.status(404).json({ message: "Meta não encontrada ou não pertence ao usuário." });
         }
         res.status(200).json({ message: "Meta atualizada com sucesso!" });
     } catch (err) {
@@ -370,7 +373,7 @@ app.delete("/metas/:id", verifyToken, async (req, res) => {
             [id, req.userId]
         );
         if (result.affectedRows === 0) {
-            return res.status(404).send("Meta não encontrada ou não pertence ao usuário.");
+            return res.status(404).json({ message: "Meta não encontrada ou não pertence ao usuário." });
         }
         res.status(200).send({ message: "Meta excluída com sucesso!" });
     } catch (err) {
@@ -386,7 +389,7 @@ app.put("/metas/:id/toggle-home", verifyToken, async (req, res) => {
             "UPDATE metas SET incluir_home = NOT incluir_home WHERE id = ? AND user_id = ?",
             [id, req.userId]
         );
-        res.status(200).send({ message: "Visibilidade da meta atualizada." });
+        res.status(200).json({ message: "Visibilidade da meta atualizada." });
     } catch (err) {
         console.error("Erro ao alternar visibilidade da meta:", err);
         res.status(500).json({ message: "Erro no servidor." });

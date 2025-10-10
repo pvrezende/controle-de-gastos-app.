@@ -28,9 +28,11 @@ export default function RegisterScreen({ navigation }) {
       await register(username, password);
       // O AuthContext cuidará da navegação após o login automático
     } catch (error) {
-      const errorMessage = error.response?.data || 'Não foi possível completar o cadastro.';
-      Alert.alert('Erro no Cadastro', errorMessage);
-    } finally {
+    // Pega a mensagem específica do servidor (ex: "Usuário já em uso").
+    const errorMessage = error.response?.data?.message || 'Não foi possível conectar ao servidor.';
+    Alert.alert('Erro no Cadastro', errorMessage);
+    console.error('Falha no cadastro:', error.response?.data || error);
+  } finally {
       setIsLoading(false);
     }
   };
