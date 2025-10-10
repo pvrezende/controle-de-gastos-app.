@@ -5,33 +5,31 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken'); 
 
 const app = express();
-const port = 3001;
+const port = process.env.PORT || 3001;
 const JWT_SECRET = 'seu_segredo_super_secreto';
 
 app.use(cors());
 app.use(express.json());
 
+// CORREÇÃO: Usar um "Pool de Conexões" em vez de uma conexão única.
+// É mais eficiente e robusto para um servidor web.
 const dbConfig = {
-    host: "localhost",
-    user: "app_user",
-    password: "app_password",
-    database: "gastos_pessoais"
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  port: process.env.DB_PORT,
+  ssl: {
+    minVersion: 'TLSv1.2',
+    rejectUnauthorized: true
+  },
+  waitForConnections: true,
+  connectionLimit: 10, // Limite de conexões no pool
+  queueLimit: 0
 };
 
-let connection;
+const pool = mysql.createPool(dbConfig);
 
-async function handleDisconnect() {
-    connection = await mysql.createConnection(dbConfig);
-    connection.on("error", (err) => {
-        if (err.code === "PROTOCOL_CONNECTION_LOST") { 
-            handleDisconnect();                 
-        } else {                                      
-            throw err;                                
-        }
-    });
-}
-
-handleDisconnect();
 
 const verifyToken = (req, res, next) => {
     const token = req.headers['authorization'];
@@ -53,7 +51,7 @@ app.post("/login", async (req, res) => {
     if (!username || !password) return res.status(400).send("Usuário e senha são obrigatórios.");
     
     try {
-        const [rows] = await connection.execute("SELECT * FROM usuario WHERE username = ?", [username]);
+        const [rows] = await pool.execute("SELECT * FROM usuario WHERE username = ?", [username]);
         if (rows.length === 0) return res.status(400).send("Usuário não encontrado.");
         
         const user = rows[0];
@@ -77,7 +75,7 @@ app.get("/", (req, res) => {
 
 app.get("/parcelamentos", verifyToken, async (req, res) => {
     try {
-        const [rows] = await connection.execute(
+        const [rows] = await pool.execute(
             "SELECT * FROM compras_parceladas WHERE user_id = ? ORDER BY data_compra DESC",
             [req.userId]
         );
@@ -96,7 +94,11 @@ app.post("/parcelamentos", verifyToken, async (req, res) => {
         return res.status(400).send("Todos os campos são obrigatórios.");
     }
 
+    let connection;
     try {
+        connection = await pool.getConnection();
+        await connection.beginTransaction();
+
         const [result] = await connection.execute(
             "INSERT INTO compras_parceladas (user_id, nome, valor_total, numero_parcelas, data_compra) VALUES (?, ?, ?, ?, ?)",
             [userId, nome, valor_total, numero_parcelas, data_compra]
@@ -118,11 +120,15 @@ app.post("/parcelamentos", verifyToken, async (req, res) => {
             );
         }
 
+        await connection.commit();
         res.status(201).send({ message: "Compra parcelada registrada com sucesso!" });
 
     } catch (err) {
+        if (connection) await connection.rollback();
         console.error("Erro ao registrar compra parcelada:", err);
         res.status(500).send("Erro ao registrar compra parcelada");
+    } finally {
+        if (connection) connection.release();
     }
 });
 
@@ -135,8 +141,11 @@ app.put("/parcelamentos/:id", verifyToken, async (req, res) => {
         return res.status(400).send("O nome e a categoria são obrigatórios.");
     }
 
-    await connection.beginTransaction();
+    let connection;
     try {
+        connection = await pool.getConnection();
+        await connection.beginTransaction();
+
         await connection.execute(
             "UPDATE compras_parceladas SET nome = ? WHERE id = ? AND user_id = ?",
             [nome, id, userId]
@@ -155,9 +164,11 @@ app.put("/parcelamentos/:id", verifyToken, async (req, res) => {
         await connection.commit();
         res.status(200).json({ message: "Parcelamento atualizado com sucesso." });
     } catch (err) {
-        await connection.rollback();
+        if (connection) await connection.rollback();
         console.error("Erro ao atualizar parcelamento:", err);
         res.status(500).send("Erro ao atualizar parcelamento");
+    } finally {
+        if (connection) connection.release();
     }
 });
 
@@ -165,8 +176,11 @@ app.delete("/parcelamentos/:id", verifyToken, async (req, res) => {
     const { id } = req.params;
     const userId = req.userId;
 
-    await connection.beginTransaction();
+    let connection;
     try {
+        connection = await pool.getConnection();
+        await connection.beginTransaction();
+
         await connection.execute(
             "DELETE FROM despesas WHERE compra_parcelada_id = ? AND user_id = ?",
             [id, userId]
@@ -186,9 +200,11 @@ app.delete("/parcelamentos/:id", verifyToken, async (req, res) => {
         res.status(200).send({ message: "Parcelamento e suas despesas foram excluídos." });
 
     } catch (err) {
-        await connection.rollback();
+        if (connection) await connection.rollback();
         console.error("Erro ao excluir parcelamento:", err);
         res.status(500).send("Erro ao excluir parcelamento.");
+    } finally {
+        if (connection) connection.release();
     }
 });
 
@@ -197,7 +213,7 @@ app.delete("/parcelamentos/:id", verifyToken, async (req, res) => {
 
 app.get("/despesas", verifyToken, async (req, res) => {
     try {
-        const [rows] = await connection.execute("SELECT * FROM despesas WHERE user_id = ?", [req.userId]);
+        const [rows] = await pool.execute("SELECT * FROM despesas WHERE user_id = ?", [req.userId]);
         res.json(rows);
     } catch (err) {
         console.error("Erro ao buscar despesas:", err);
@@ -208,7 +224,7 @@ app.get("/despesas", verifyToken, async (req, res) => {
 app.post("/despesas", verifyToken, async (req, res) => {
     const { nome, valor, data_vencimento, categoria } = req.body;
     try {
-        const [result] = await connection.execute(
+        const [result] = await pool.execute(
             "INSERT INTO despesas (nome, valor, data_vencimento, categoria, user_id) VALUES (?, ?, ?, ?, ?)",
             [nome, valor, data_vencimento, categoria, req.userId]
         );
@@ -223,7 +239,7 @@ app.put("/despesas/:id/pagar", verifyToken, async (req, res) => {
     const { id } = req.params;
     const { data_pagamento } = req.body;
     try {
-        await connection.execute(
+        await pool.execute(
             "UPDATE despesas SET data_pagamento = ? WHERE id = ? AND user_id = ?",
             [data_pagamento, id, req.userId]
         );
@@ -243,7 +259,7 @@ app.put("/despesas/:id", verifyToken, async (req, res) => {
     }
 
     try {
-        const [result] = await connection.execute(
+        const [result] = await pool.execute(
             "UPDATE despesas SET nome = ?, valor = ?, data_vencimento = ?, categoria = ? WHERE id = ? AND user_id = ?",
             [nome, valor, data_vencimento, categoria, id, req.userId]
         );
@@ -261,7 +277,7 @@ app.put("/despesas/:id", verifyToken, async (req, res) => {
 app.delete("/despesas/:id", verifyToken, async (req, res) => {
     const { id } = req.params;
     try {
-        const [result] = await connection.execute(
+        const [result] = await pool.execute(
             "DELETE FROM despesas WHERE id = ? AND user_id = ?",
             [id, req.userId]
         );
@@ -280,7 +296,7 @@ app.delete("/despesas/:id", verifyToken, async (req, res) => {
 
 app.get("/metas", verifyToken, async (req, res) => {
     try {
-        const [rows] = await connection.execute("SELECT * FROM metas WHERE user_id = ?", [req.userId]);
+        const [rows] = await pool.execute("SELECT * FROM metas WHERE user_id = ?", [req.userId]);
         res.json(rows);
     } catch (err) {
         console.error("Erro ao buscar metas:", err);
@@ -291,7 +307,7 @@ app.get("/metas", verifyToken, async (req, res) => {
 app.post("/metas", verifyToken, async (req, res) => {
     const { nome, valor_alvo, data_limite } = req.body;
     try {
-        const [result] = await connection.execute(
+        const [result] = await pool.execute(
             "INSERT INTO metas (nome, valor_alvo, data_limite, user_id, incluir_home) VALUES (?, ?, ?, ?, 1)",
             [nome, valor_alvo, data_limite, req.userId]
         );
@@ -306,7 +322,7 @@ app.put("/metas/:id", verifyToken, async (req, res) => {
     const { id } = req.params;
     const { nome, valor_alvo, data_limite } = req.body;
     try {
-        const [result] = await connection.execute(
+        const [result] = await pool.execute(
             "UPDATE metas SET nome = ?, valor_alvo = ?, data_limite = ? WHERE id = ? AND user_id = ?",
             [nome, valor_alvo, data_limite, id, req.userId]
         );
@@ -323,7 +339,7 @@ app.put("/metas/:id", verifyToken, async (req, res) => {
 app.delete("/metas/:id", verifyToken, async (req, res) => {
     const { id } = req.params;
     try {
-        const [result] = await connection.execute(
+        const [result] = await pool.execute(
             "DELETE FROM metas WHERE id = ? AND user_id = ?",
             [id, req.userId]
         );
@@ -340,7 +356,7 @@ app.delete("/metas/:id", verifyToken, async (req, res) => {
 app.put("/metas/:id/toggle-home", verifyToken, async (req, res) => {
     const { id } = req.params;
     try {
-        await connection.execute(
+        await pool.execute(
             "UPDATE metas SET incluir_home = NOT incluir_home WHERE id = ? AND user_id = ?",
             [id, req.userId]
         );
@@ -356,7 +372,7 @@ app.put("/metas/:id/toggle-home", verifyToken, async (req, res) => {
 
 app.get("/dividas", verifyToken, async (req, res) => {
     try {
-        const [rows] = await connection.execute("SELECT * FROM dividas WHERE user_id = ?", [req.userId]);
+        const [rows] = await pool.execute("SELECT * FROM dividas WHERE user_id = ?", [req.userId]);
         res.json(rows);
     } catch (err) {
         console.error("Erro ao buscar dívidas:", err);
@@ -367,7 +383,7 @@ app.get("/dividas", verifyToken, async (req, res) => {
 app.post("/dividas", verifyToken, async (req, res) => {
     const { nome, valor_total, valor_desconto, data_limite } = req.body;
     try {
-        const [result] = await connection.execute(
+        const [result] = await pool.execute(
             "INSERT INTO dividas (nome, valor_total, valor_desconto, data_limite, user_id, incluir_home) VALUES (?, ?, ?, ?, ?, 1)",
             [nome, valor_total, valor_desconto || 0, data_limite, req.userId]
         );
@@ -382,7 +398,7 @@ app.put("/dividas/:id", verifyToken, async (req, res) => {
     const { id } = req.params;
     const { nome, valor_total, valor_desconto, data_limite } = req.body;
     try {
-        const [result] = await connection.execute(
+        const [result] = await pool.execute(
             "UPDATE dividas SET nome = ?, valor_total = ?, valor_desconto = ?, data_limite = ? WHERE id = ? AND user_id = ?",
             [nome, valor_total, valor_desconto || 0, data_limite, id, req.userId]
         );
@@ -399,7 +415,7 @@ app.put("/dividas/:id", verifyToken, async (req, res) => {
 app.delete("/dividas/:id", verifyToken, async (req, res) => {
     const { id } = req.params;
     try {
-        const [result] = await connection.execute(
+        const [result] = await pool.execute(
             "DELETE FROM dividas WHERE id = ? AND user_id = ?",
             [id, req.userId]
         );
@@ -416,7 +432,7 @@ app.delete("/dividas/:id", verifyToken, async (req, res) => {
 app.put("/dividas/:id/toggle-home", verifyToken, async (req, res) => {
     const { id } = req.params;
     try {
-        await connection.execute(
+        await pool.execute(
             "UPDATE dividas SET incluir_home = NOT incluir_home WHERE id = ? AND user_id = ?",
             [id, req.userId]
         );
@@ -432,7 +448,7 @@ app.put("/dividas/:id/toggle-home", verifyToken, async (req, res) => {
 
 app.get("/usuario", verifyToken, async (req, res) => {
     try {
-        const [rows] = await connection.execute("SELECT id, username, renda_mensal FROM usuario WHERE id = ?", [req.userId]);
+        const [rows] = await pool.execute("SELECT id, username, renda_mensal FROM usuario WHERE id = ?", [req.userId]);
         res.json(rows[0] || {});
     } catch (err) {
         console.error("Erro ao buscar dados do usuário:", err);
@@ -443,7 +459,7 @@ app.get("/usuario", verifyToken, async (req, res) => {
 app.put("/usuario", verifyToken, async (req, res) => {
     const { renda_mensal } = req.body;
     try {
-        await connection.execute(
+        await pool.execute(
             "UPDATE usuario SET renda_mensal = ? WHERE id = ?",
             [renda_mensal, req.userId]
         );
@@ -460,7 +476,7 @@ app.get("/despesas/categorias-mes", verifyToken, async (req, res) => {
         return res.status(400).send("Mês e ano são obrigatórios.");
     }
     try {
-        const [rows] = await connection.execute(
+        const [rows] = await pool.execute(
             "SELECT categoria, SUM(valor) as total FROM despesas WHERE user_id = ? AND MONTH(data_pagamento) = ? AND YEAR(data_pagamento) = ? AND data_pagamento IS NOT NULL GROUP BY categoria",
             [req.userId, mes, ano]
         );
@@ -478,7 +494,7 @@ app.put("/usuario/senha", verifyToken, async (req, res) => {
     }
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     try {
-        await connection.execute(
+        await pool.execute(
             "UPDATE usuario SET password = ? WHERE id = ?",
             [hashedPassword, req.userId]
         );
@@ -499,7 +515,7 @@ app.post("/register", async (req, res) => {
 
     try {
         // 1. Verifica se o usuário já existe
-        const [userExists] = await connection.execute("SELECT * FROM usuario WHERE username = ?", [username]);
+        const [userExists] = await pool.execute("SELECT * FROM usuario WHERE username = ?", [username]);
         if (userExists.length > 0) {
             return res.status(409).send("Este nome de usuário já está em uso."); // 409 Conflict
         }
@@ -508,7 +524,7 @@ app.post("/register", async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
 
         // 3. Insere o novo usuário no banco de dados
-        const [result] = await connection.execute(
+        const [result] = await pool.execute(
             "INSERT INTO usuario (username, password, renda_mensal) VALUES (?, ?, ?)",
             [username, hashedPassword, 0] // Começa com renda 0
         );
@@ -532,7 +548,7 @@ app.get("/rendas-extras", verifyToken, async (req, res) => {
         return res.status(400).send("Mês e ano são obrigatórios.");
     }
     try {
-        const [rows] = await connection.execute(
+        const [rows] = await pool.execute(
             "SELECT * FROM rendas_extras WHERE user_id = ? AND MONTH(data_recebimento) = ? AND YEAR(data_recebimento) = ?",
             [req.userId, mes, ano]
         );
@@ -546,7 +562,7 @@ app.get("/rendas-extras", verifyToken, async (req, res) => {
 app.post("/rendas-extras", verifyToken, async (req, res) => {
     const { nome, valor, data_recebimento } = req.body;
     try {
-        const [result] = await connection.execute(
+        const [result] = await pool.execute(
             "INSERT INTO rendas_extras (nome, valor, data_recebimento, user_id) VALUES (?, ?, ?, ?)",
             [nome, valor, data_recebimento, req.userId]
         );
@@ -561,7 +577,7 @@ app.put("/rendas-extras/:id", verifyToken, async (req, res) => {
     const { id } = req.params;
     const { nome, valor, data_recebimento } = req.body;
     try {
-        const [result] = await connection.execute(
+        const [result] = await pool.execute(
             "UPDATE rendas_extras SET nome = ?, valor = ?, data_recebimento = ? WHERE id = ? AND user_id = ?",
             [nome, valor, data_recebimento, id, req.userId]
         );
@@ -578,7 +594,7 @@ app.put("/rendas-extras/:id", verifyToken, async (req, res) => {
 app.delete("/rendas-extras/:id", verifyToken, async (req, res) => {
     const { id } = req.params;
     try {
-        const [result] = await connection.execute(
+        const [result] = await pool.execute(
             "DELETE FROM rendas_extras WHERE id = ? AND user_id = ?",
             [id, req.userId]
         );
@@ -598,7 +614,7 @@ app.post("/categorias", verifyToken, async (req, res) => {
         return res.status(400).send("Nome e ícone são obrigatórios.");
     }
     try {
-        const [result] = await connection.execute(
+        const [result] = await pool.execute(
             "INSERT INTO categorias (nome, icone) VALUES (?, ?)",
             [nome, icone]
         );
@@ -611,7 +627,7 @@ app.post("/categorias", verifyToken, async (req, res) => {
 
 app.get("/categorias", verifyToken, async (req, res) => {
     try {
-        const [rows] = await connection.execute("SELECT * FROM categorias");
+        const [rows] = await pool.execute("SELECT * FROM categorias");
         res.json(rows);
     } catch (err) {
         console.error("Erro ao buscar categorias:", err);
@@ -628,7 +644,7 @@ app.put("/categorias/:id", verifyToken, async (req, res) => {
     }
     
     try {
-        const [result] = await connection.execute(
+        const [result] = await pool.execute(
             "UPDATE categorias SET nome = ?, icone = ? WHERE id = ?",
             [nome, icone, id]
         );
@@ -653,11 +669,13 @@ app.delete("/usuario", verifyToken, async (req, res) => {
         return res.status(400).send("ID de usuário não fornecido.");
     }
 
-    const connection = await mysql.createConnection(dbConfig);
-    await connection.beginTransaction();
-
+    let connection; // Declara a variável aqui fora para o finally ter acesso
     try {
-        // 1. Excluir despesas parceladas (incluindo as parcelas)
+        // CORREÇÃO: Pega uma conexão do pool
+        connection = await pool.getConnection();
+        await connection.beginTransaction();
+
+        // 1. Excluir despesas (a tabela de parcelas já vai junto se a FK estiver correta)
         await connection.execute("DELETE FROM despesas WHERE user_id = ?", [userId]);
         await connection.execute("DELETE FROM compras_parceladas WHERE user_id = ?", [userId]);
 
@@ -674,17 +692,19 @@ app.delete("/usuario", verifyToken, async (req, res) => {
         await connection.commit();
         res.status(200).send("Conta excluída com sucesso.");
     } catch (err) {
-        await connection.rollback();
+        if (connection) await connection.rollback(); // Garante que o rollback aconteça se a conexão foi estabelecida
         console.error("Erro ao excluir usuário e dados:", err);
         res.status(500).send("Erro no servidor ao excluir a conta.");
     } finally {
-        await connection.release();
+        // CORREÇÃO: Libera a conexão de volta para o pool
+        if (connection) connection.release();
     }
 });
 
+
 app.get("/despesas/gastos-mensais", verifyToken, async (req, res) => {
     try {
-        const [rows] = await connection.execute(
+        const [rows] = await pool.execute(
             `SELECT 
                 MONTH(data_pagamento) as mes,
                 YEAR(data_pagamento) as ano,
@@ -710,7 +730,7 @@ app.get("/despesas/projecao", verifyToken, async (req, res) => {
         const ano = hoje.getFullYear();
 
         // 1. Consulta SQL CORRIGIDA: Buscar despesas pagas NO MÊS ATUAL ou a vencer NO MÊS ATUAL.
-        const [despesasDoMes] = await connection.execute(
+        const [despesasDoMes] = await pool.execute(
             `SELECT nome, valor, data_vencimento, data_pagamento, fixo, categoria 
              FROM despesas 
              WHERE user_id = ? AND (
@@ -720,13 +740,13 @@ app.get("/despesas/projecao", verifyToken, async (req, res) => {
             [req.userId, mes, ano, mes, ano]
         );
 
-        const [rendasExtrasMes] = await connection.execute(
+        const [rendasExtrasMes] = await pool.execute(
             `SELECT valor 
              FROM rendas_extras 
              WHERE user_id = ? AND MONTH(data_recebimento) = ? AND YEAR(data_recebimento) = ?`,
             [req.userId, mes, ano]
         );
-        const [rendaMensal] = await connection.execute(
+        const [rendaMensal] = await pool.execute(
             "SELECT renda_mensal FROM usuario WHERE id = ?",
             [req.userId]
         );
