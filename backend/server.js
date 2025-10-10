@@ -52,22 +52,48 @@ app.post("/login", async (req, res) => {
     
     try {
         const [rows] = await pool.execute("SELECT * FROM usuario WHERE username = ?", [username]);
-        if (rows.length === 0) return res.status(400).send("Usuário não encontrado.");
+        if (rows.length === 0) return res.status(400).json({ message: "Usuário ou senha inválidos." });
         
         const user = rows[0];
         const isPasswordValid = await bcrypt.compare(password, user.password);
-        if (!isPasswordValid) return res.status(400).send("Senha inválida.");
+        if (!isPasswordValid) return res.status(400).json({ message: "Usuário ou senha inválidos." });
+
         
         const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '24h' });
         res.status(200).json({ token: token });
     } catch (err) {
         console.error("Erro no login:", err);
-        res.status(500).send("Erro no servidor.");
+        res.status(500).json({ message: "Erro no servidor." });
+
     }
 });
 
 app.get("/", (req, res) => {
     res.send("API de Controle de Gastos está funcionando!");
+});
+
+// ROTA DE STATUS (NOVO)
+app.get("/status", async (req, res) => {
+  try {
+    // 1. Tenta pegar uma conexão do pool para testar o DB
+    const connection = await pool.getConnection();
+    // 2. Libera a conexão imediatamente
+    connection.release();
+    // 3. Se chegou até aqui, tudo está OK
+    res.status(200).json({ 
+      status: "OK", 
+      backend: "online", 
+      database: "online" 
+    });
+  } catch (err) {
+    // Se deu erro ao pegar a conexão, o problema é no banco
+    console.error("Erro de conexão com o banco de dados:", err);
+    res.status(503).json({ 
+      status: "Error", 
+      backend: "online", 
+      database: "offline" 
+    });
+  }
 });
 
 
@@ -82,7 +108,7 @@ app.get("/parcelamentos", verifyToken, async (req, res) => {
         res.json(rows);
     } catch (err) {
         console.error("Erro ao buscar compras parceladas:", err);
-        res.status(500).send("Erro ao buscar compras parceladas");
+        res.status(500).json({ message: "Erro ao buscar compras parceladas" });
     }
 });
 
@@ -126,7 +152,7 @@ app.post("/parcelamentos", verifyToken, async (req, res) => {
     } catch (err) {
         if (connection) await connection.rollback();
         console.error("Erro ao registrar compra parcelada:", err);
-        res.status(500).send("Erro ao registrar compra parcelada");
+        res.status(500).json({ message: "Erro ao registrar compra parcelada" });
     } finally {
         if (connection) connection.release();
     }
@@ -166,7 +192,7 @@ app.put("/parcelamentos/:id", verifyToken, async (req, res) => {
     } catch (err) {
         if (connection) await connection.rollback();
         console.error("Erro ao atualizar parcelamento:", err);
-        res.status(500).send("Erro ao atualizar parcelamento");
+        res.status(500).json({ message: "Erro ao atualizar parcelamento" });
     } finally {
         if (connection) connection.release();
     }
@@ -202,7 +228,7 @@ app.delete("/parcelamentos/:id", verifyToken, async (req, res) => {
     } catch (err) {
         if (connection) await connection.rollback();
         console.error("Erro ao excluir parcelamento:", err);
-        res.status(500).send("Erro ao excluir parcelamento.");
+        res.status(500).json({ message: "Erro ao excluir parcelamento." });
     } finally {
         if (connection) connection.release();
     }
@@ -217,7 +243,7 @@ app.get("/despesas", verifyToken, async (req, res) => {
         res.json(rows);
     } catch (err) {
         console.error("Erro ao buscar despesas:", err);
-        res.status(500).send("Erro ao buscar despesas");
+        res.status(500).json({ message: "Erro ao buscar despesas" });
     }
 });
 
@@ -231,7 +257,7 @@ app.post("/despesas", verifyToken, async (req, res) => {
         res.status(201).json({ id: result.insertId, nome, valor, data_vencimento, categoria });
     } catch (err) {
         console.error("Erro ao adicionar despesa:", err);
-        res.status(500).send("Erro ao adicionar despesa");
+        res.status(500).json({ message: "Erro ao adicionar despesa" });
     }
 });
 
@@ -246,7 +272,7 @@ app.put("/despesas/:id/pagar", verifyToken, async (req, res) => {
         res.json({ message: "Despesa marcada como paga com sucesso!" });
     } catch (err) {
         console.error("Erro ao marcar como paga:", err);
-        res.status(500).send("Erro ao marcar despesa como paga");
+        res.status(500).json({ message: "Erro ao marcar despesa como paga" });
     }
 });
 
@@ -270,7 +296,7 @@ app.put("/despesas/:id", verifyToken, async (req, res) => {
         res.status(200).json({ message: "Despesa atualizada com sucesso!" });
     } catch (err) {
         console.error("Erro ao atualizar despesa:", err);
-        res.status(500).send("Erro ao atualizar despesa");
+        res.status(500).json({ message: "Erro ao atualizar despesa" });
     }
 });
 
@@ -287,7 +313,7 @@ app.delete("/despesas/:id", verifyToken, async (req, res) => {
         res.status(200).send({ message: "Despesa excluída com sucesso!" });
     } catch (err) {
         console.error("Erro ao excluir despesa:", err);
-        res.status(500).send("Erro ao excluir despesa");
+        res.status(500).json({ message: "Erro ao excluir despesa" });
     }
 });
 
@@ -300,7 +326,7 @@ app.get("/metas", verifyToken, async (req, res) => {
         res.json(rows);
     } catch (err) {
         console.error("Erro ao buscar metas:", err);
-        res.status(500).send("Erro ao buscar metas");
+        res.status(500).json({ message: "Erro ao buscar metas" });
     }
 });
 
@@ -314,7 +340,7 @@ app.post("/metas", verifyToken, async (req, res) => {
         res.status(201).json({ id: result.insertId, nome, valor_alvo, data_limite });
     } catch (err) {
         console.error("Erro ao adicionar meta:", err);
-        res.status(500).send("Erro ao adicionar meta");
+        res.status(500).json({ message: "Erro ao adicionar meta" });
     }
 });
 
@@ -332,7 +358,7 @@ app.put("/metas/:id", verifyToken, async (req, res) => {
         res.status(200).json({ message: "Meta atualizada com sucesso!" });
     } catch (err) {
         console.error("Erro ao atualizar meta:", err);
-        res.status(500).send("Erro ao atualizar meta");
+        res.status(500).json({ message: "Erro ao atualizar meta" });
     }
 });
 
@@ -349,7 +375,7 @@ app.delete("/metas/:id", verifyToken, async (req, res) => {
         res.status(200).send({ message: "Meta excluída com sucesso!" });
     } catch (err) {
         console.error("Erro ao excluir meta:", err);
-        res.status(500).send("Erro ao excluir meta");
+        res.status(500).json({ message: "Erro ao excluir meta" });
     }
 });
 
@@ -363,7 +389,7 @@ app.put("/metas/:id/toggle-home", verifyToken, async (req, res) => {
         res.status(200).send({ message: "Visibilidade da meta atualizada." });
     } catch (err) {
         console.error("Erro ao alternar visibilidade da meta:", err);
-        res.status(500).send("Erro no servidor.");
+        res.status(500).json({ message: "Erro no servidor." });
     }
 });
 
@@ -376,7 +402,7 @@ app.get("/dividas", verifyToken, async (req, res) => {
         res.json(rows);
     } catch (err) {
         console.error("Erro ao buscar dívidas:", err);
-        res.status(500).send("Erro ao buscar dívidas");
+        res.status(500).json({ message: "Erro ao buscar dívidas" });
     }
 });
 
@@ -390,7 +416,7 @@ app.post("/dividas", verifyToken, async (req, res) => {
         res.status(201).json({ id: result.insertId, nome, valor_total, valor_desconto, data_limite });
     } catch (err) {
         console.error("Erro ao adicionar dívida:", err);
-        res.status(500).send("Erro ao adicionar dívida");
+        res.status(500).json({ message: "Erro ao adicionar dívida" });
     }
 });
 
@@ -408,7 +434,7 @@ app.put("/dividas/:id", verifyToken, async (req, res) => {
         res.status(200).json({ message: "Dívida atualizada com sucesso!" });
     } catch (err) {
         console.error("Erro ao atualizar dívida:", err);
-        res.status(500).send("Erro ao atualizar dívida");
+        res.status(500).json({ message: "Erro ao atualizar dívida" });
     }
 });
 
@@ -425,7 +451,7 @@ app.delete("/dividas/:id", verifyToken, async (req, res) => {
         res.status(200).send({ message: "Dívida excluída com sucesso!" });
     } catch (err) {
         console.error("Erro ao excluir dívida:", err);
-        res.status(500).send("Erro ao excluir dívida");
+        res.status(500).json({ message: "Erro ao excluir dívida" });
     }
 });
 
@@ -439,7 +465,7 @@ app.put("/dividas/:id/toggle-home", verifyToken, async (req, res) => {
         res.status(200).send({ message: "Visibilidade da dívida atualizada." });
     } catch (err) {
         console.error("Erro ao alternar visibilidade da dívida:", err);
-        res.status(500).send("Erro no servidor.");
+        res.status(500).json({ message: "Erro no servidor." });
     }
 });
 
@@ -452,7 +478,7 @@ app.get("/usuario", verifyToken, async (req, res) => {
         res.json(rows[0] || {});
     } catch (err) {
         console.error("Erro ao buscar dados do usuário:", err);
-        res.status(500).send("Erro ao buscar dados do usuário");
+        res.status(500).json({ message: "Erro ao buscar dados do usuário" });
     }
 });
 
@@ -466,7 +492,7 @@ app.put("/usuario", verifyToken, async (req, res) => {
         res.json({ message: "Renda mensal atualizada com sucesso" });
     } catch (err) {
         console.error("Erro ao atualizar renda mensal:", err);
-        res.status(500).send("Erro ao atualizar renda mensal");
+        res.status(500).json({ message: "Erro ao atualizar renda mensal" });
     }
 });
 
@@ -483,7 +509,7 @@ app.get("/despesas/categorias-mes", verifyToken, async (req, res) => {
         res.json(rows);
     } catch (err) {
         console.error("Erro ao buscar despesas por categoria para o mês:", err);
-        res.status(500).send("Erro ao buscar despesas por categoria para o mês");
+        res.status(500).json({ message: "Erro ao buscar despesas por categoria para o mês" });
     }
 });
 
@@ -501,7 +527,7 @@ app.put("/usuario/senha", verifyToken, async (req, res) => {
         res.status(200).send("Senha atualizada com sucesso!");
     } catch (err) {
         console.error("Erro ao atualizar a senha:", err);
-        res.status(500).send("Erro ao atualizar a senha.");
+        res.status(500).json({ message: "Erro ao atualizar a senha." });
     }
 });
 
@@ -517,8 +543,9 @@ app.post("/register", async (req, res) => {
         // 1. Verifica se o usuário já existe
         const [userExists] = await pool.execute("SELECT * FROM usuario WHERE username = ?", [username]);
         if (userExists.length > 0) {
-            return res.status(409).send("Este nome de usuário já está em uso."); // 409 Conflict
+            return res.status(409).json({ message: "Este nome de usuário já está em uso." });
         }
+
 
         // 2. Criptografa a senha
         const hashedPassword = await bcrypt.hash(password, 10);
@@ -536,7 +563,8 @@ app.post("/register", async (req, res) => {
 
     } catch (err) {
         console.error("Erro no cadastro:", err);
-        res.status(500).send("Erro no servidor ao tentar cadastrar.");
+        res.status(500).json({ message: "Erro no servidor ao tentar cadastrar." });
+
     }
 });
 
@@ -555,7 +583,7 @@ app.get("/rendas-extras", verifyToken, async (req, res) => {
         res.json(rows);
     } catch (err) {
         console.error("Erro ao buscar rendas extras:", err);
-        res.status(500).send("Erro ao buscar rendas extras");
+        res.status(500).json({ message: "Erro ao buscar rendas extras" });
     }
 });
 
@@ -569,7 +597,7 @@ app.post("/rendas-extras", verifyToken, async (req, res) => {
         res.status(201).json({ id: result.insertId, nome, valor, data_recebimento });
     } catch (err) {
         console.error("Erro ao adicionar renda extra:", err);
-        res.status(500).send("Erro ao adicionar renda extra");
+        res.status(500).json({ message: "Erro ao adicionar renda extra" });
     }
 });
 
@@ -587,7 +615,7 @@ app.put("/rendas-extras/:id", verifyToken, async (req, res) => {
         res.status(200).json({ message: "Renda extra atualizada com sucesso!" });
     } catch (err) {
         console.error("Erro ao atualizar renda extra:", err);
-        res.status(500).send("Erro ao atualizar renda extra");
+        res.status(500).json({ message: "Erro ao atualizar renda extra" });
     }
 });
 
@@ -604,7 +632,7 @@ app.delete("/rendas-extras/:id", verifyToken, async (req, res) => {
         res.status(200).send({ message: "Renda extra excluída com sucesso!" });
     } catch (err) {
         console.error("Erro ao excluir renda extra:", err);
-        res.status(500).send("Erro ao excluir renda extra");
+        res.status(500).json({ message: "Erro ao excluir renda extra" });
     }
 });
 
@@ -621,7 +649,7 @@ app.post("/categorias", verifyToken, async (req, res) => {
         res.status(201).json({ id: result.insertId, nome, icone });
     } catch (err) {
         console.error("Erro ao adicionar categoria:", err);
-        res.status(500).send("Erro ao adicionar categoria.");
+        res.status(500).json({ message: "Erro ao adicionar categoria." });
     }
 });
 
@@ -631,7 +659,7 @@ app.get("/categorias", verifyToken, async (req, res) => {
         res.json(rows);
     } catch (err) {
         console.error("Erro ao buscar categorias:", err);
-        res.status(500).send("Erro ao buscar categorias.");
+        res.status(500).json({ message: "Erro ao buscar categorias." });
     }
 });
 
@@ -657,7 +685,7 @@ app.put("/categorias/:id", verifyToken, async (req, res) => {
 
     } catch (err) {
         console.error("Erro ao atualizar categoria:", err);
-        res.status(500).send("Erro ao atualizar categoria.");
+        res.status(500).json({ message: "Erro ao atualizar categoria." });
     }
 });
 
@@ -694,7 +722,7 @@ app.delete("/usuario", verifyToken, async (req, res) => {
     } catch (err) {
         if (connection) await connection.rollback(); // Garante que o rollback aconteça se a conexão foi estabelecida
         console.error("Erro ao excluir usuário e dados:", err);
-        res.status(500).send("Erro no servidor ao excluir a conta.");
+        res.status(500).json({ message: "Erro no servidor ao excluir a conta." });
     } finally {
         // CORREÇÃO: Libera a conexão de volta para o pool
         if (connection) connection.release();
@@ -719,7 +747,7 @@ app.get("/despesas/gastos-mensais", verifyToken, async (req, res) => {
         res.json(rows);
     } catch (err) {
         console.error("Erro ao buscar gastos mensais:", err);
-        res.status(500).send("Erro ao buscar gastos mensais");
+        res.status(500).json({ message: "Erro ao buscar gastos mensais" });
     }
 });
 
@@ -797,7 +825,7 @@ app.get("/despesas/projecao", verifyToken, async (req, res) => {
         });
     } catch (err) {
         console.error("Erro ao buscar dados de projeção:", err);
-        res.status(500).send("Erro ao buscar dados de projeção");
+        res.status(500).json({ message: "Erro ao buscar dados de projeção" });
     }
 });
 
