@@ -22,15 +22,12 @@ export default function LoginScreen({ navigation }) {
     try {
       await login(username, password);
     } catch (error) {
-    // Pega a mensagem do servidor, ou usa uma padrão se não houver.
-    const errorMessage = error.response?.data?.message || 'Não foi possível conectar ao servidor.';
-    Alert.alert('Erro no Login', errorMessage);
-    console.error('Falha no login:', error.response?.data || error);
-  }
-    finally {
-          setIsLoading(false);
-        }
-      };
+      Alert.alert('Erro no Login', 'Usuário ou senha inválidos.');
+      console.error('Falha no login:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const styles = StyleSheet.create({
     container: {

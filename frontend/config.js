@@ -1,15 +1,12 @@
 // frontend/config.js
 
-// Daqui para frente, altere APENAS este IP quando mudar de rede
-// frontend/config.js
-//const API_IP = '100.26.141.230'; 
-//export const API_URL = `http://${API_IP}:3001`;
+// Use o DNS Público ou o IP Público da sua instância EC2
+// O DNS é geralmente preferível pois o IP público pode mudar se a instância for parada/iniciada.
+const API_IP = 'ec2-100-26-141-230.compute-1.amazonaws.com'; // DNS Público da sua EC2
+export const API_URL = `http://${API_IP}:3001`; // Porta definida no backend (server.js)
 
-// A URL agora é fixa e aponta para o servidor na nuvem (Render).
-export const API_URL = 'https://controle-gastos-api-paulo.onrender.com';
-
-
-//const API_URL = 'http://192.168.1.186:3000';//delta
+// IPs antigos comentados (para referência)
+//const API_URL = 'http://192.168.0.187:3000';//delta
 //const API_URL = 'http://192.168.1.85:3000';//casa
 //const API_URL = 'http://10.60.104.105:3000';//indt
 //const API_URL = 'http://10.176.56.192:3000';//celular

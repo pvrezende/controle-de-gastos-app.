@@ -7,7 +7,6 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    
     "ios": {
       "supportsTablet": true
     },
@@ -17,7 +16,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.pvrezende23.controle-gastos-app",
+      "package": "com.pvrezende23.controle_gastos_app",
       "usesCleartextTraffic": true
     },
     "web": {
@@ -25,7 +24,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "9e4cd77f-a220-42f2-b600-a5ba8cf6fb06"
+        "projectId": "0314bda9-681b-40b3-8251-f9eaa1d33f89"
       }
     }
   }

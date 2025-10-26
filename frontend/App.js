@@ -4,8 +4,8 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthContext, AuthProvider } from './context/AuthContext';
-import { ThemeProvider, ThemeContext } from './context/ThemeContext'; // Importe ThemeProvider e ThemeContext
-import { ActivityIndicator, View, TouchableOpacity } from 'react-native';
+import { ThemeProvider, ThemeContext } from './context/ThemeContext';
+import { ActivityIndicator, View, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Provider as PaperProvider } from 'react-native-paper';
 
 import HomeScreen from './screens/HomeScreen';
@@ -15,8 +15,6 @@ import ReportsScreen from './screens/ReportsScreen';
 import LoginScreen from './screens/LoginScreen';
 import DividasScreen from './screens/DividasScreen';
 import RegisterScreen from './screens/RegisterScreen';
-
-// Importe a nova tela de Conta
 import AccountScreen from './screens/AccountScreen';
 
 const Tab = createBottomTabNavigator();
@@ -24,7 +22,7 @@ const Stack = createStackNavigator();
 
 function AppTabs() {
   const { logout } = useContext(AuthContext);
-  const { theme } = useContext(ThemeContext); // Use o contexto do tema
+  const { theme } = useContext(ThemeContext);
 
   return (
     <Tab.Navigator
@@ -46,14 +44,26 @@ function AppTabs() {
             <Ionicons name="log-out-outline" size={24} color="tomato" />
           </TouchableOpacity>
         ),
-        tabBarLabelStyle: { fontSize: 10 },
+        tabBarLabelStyle: {
+           // Definir fontSize menor para a web
+           ...Platform.select({
+             web: {
+               fontSize: 9, // Tentar com 9
+               paddingBottom: 2, // Adicionar um pequeno padding inferior se necessário
+             },
+             default: {
+               // Manter o padrão ou definir um para mobile se quiser
+               // fontSize: 10, // Se quiser voltar ao tamanho 10 para mobile
+             }
+           })
+        },
         tabBarStyle: {
-            backgroundColor: theme.cardBackground // Define a cor de fundo da barra de navegação
+            backgroundColor: theme.cardBackground
         },
         headerStyle: {
-            backgroundColor: theme.cardBackground // Define a cor de fundo do cabeçalho
+            backgroundColor: theme.cardBackground
         },
-        headerTintColor: theme.text // Define a cor do texto do cabeçalho
+        headerTintColor: theme.text
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
@@ -66,8 +76,9 @@ function AppTabs() {
   );
 }
 
+// --- Função AuthStack (sem alterações) ---
 function AuthStack() {
-  const { theme } = useContext(ThemeContext); // Use o contexto do tema
+  const { theme } = useContext(ThemeContext);
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false, cardStyle: { backgroundColor: theme.background } }}>
@@ -77,13 +88,15 @@ function AuthStack() {
   );
 }
 
+// --- Função AppNav (sem alterações) ---
 function AppNav() {
   const { userToken, isLoading } = useContext(AuthContext);
+  const { theme } = useContext(ThemeContext);
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.background }}>
+        <ActivityIndicator size="large" color={theme.primary} />
       </View>
     );
   }
@@ -95,12 +108,27 @@ function AppNav() {
   );
 }
 
+// --- StyleSheet ajustado (mantendo a alteração anterior) ---
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    ...Platform.select({
+      web: {
+        height: '100%',
+      },
+    }),
+  },
+});
+
+// --- Componente App (sem alterações internas) ---
 export default function App() {
   return (
     <PaperProvider>
       <ThemeProvider>
         <AuthProvider>
-          <AppNav />
+          <View style={styles.container}>
+            <AppNav />
+          </View>
         </AuthProvider>
       </ThemeProvider>
     </PaperProvider>

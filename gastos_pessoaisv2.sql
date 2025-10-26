@@ -28,7 +28,7 @@ CREATE TABLE `categorias` (
   `icone` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `nome` (`nome`)
-) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -37,7 +37,7 @@ CREATE TABLE `categorias` (
 
 LOCK TABLES `categorias` WRITE;
 /*!40000 ALTER TABLE `categorias` DISABLE KEYS */;
-INSERT INTO `categorias` VALUES (1,'Moradia','home-outline'),(2,'outros',NULL),(3,'desejos',NULL),(4,'Transporte','bicycle-outline'),(5,'Alimentação',NULL),(6,'Saúde',NULL),(7,'Educação',NULL),(8,'Lazer',NULL),(9,'Gamer','game-controller-outline');
+INSERT INTO `categorias` VALUES (1,'Moradia','home-outline'),(2,'outros',NULL),(3,'desejos',NULL),(4,'Transporte','bicycle-outline'),(5,'Alimentação',NULL),(6,'Saúde',NULL),(7,'Educação',NULL),(8,'Lazer',NULL),(9,'Gamer','game-controller-outline'),(10,'Pets','happy-outline'),(11,'Cartão de Crédito','card-outline');
 /*!40000 ALTER TABLE `categorias` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -58,7 +58,7 @@ CREATE TABLE `compras_parceladas` (
   PRIMARY KEY (`id`),
   KEY `compras_parceladas_ibfk_1` (`user_id`),
   CONSTRAINT `compras_parceladas_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `usuario` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -67,7 +67,7 @@ CREATE TABLE `compras_parceladas` (
 
 LOCK TABLES `compras_parceladas` WRITE;
 /*!40000 ALTER TABLE `compras_parceladas` DISABLE KEYS */;
-INSERT INTO `compras_parceladas` VALUES (2,1,'Playstation 5 Slim Digital',3450.00,10,'2025-07-15'),(3,1,'Pneu R15 e Acessorios R15',825.00,3,'2025-10-01');
+INSERT INTO `compras_parceladas` VALUES (2,1,'Playstation 5 Slim Digital',3450.00,10,'2025-07-15'),(3,1,'Pneu R15 e Acessorios R15',825.00,3,'2025-10-01'),(4,1,'Notebook Acer Nitro V15 RTX 4050',5292.00,12,'2025-10-13'),(5,1,'Yamaha R15 Financiamento ',13741.00,20,'2025-10-13');
 /*!40000 ALTER TABLE `compras_parceladas` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -91,7 +91,7 @@ CREATE TABLE `despesas` (
   PRIMARY KEY (`id`),
   KEY `compra_parcelada_id` (`compra_parcelada_id`),
   CONSTRAINT `despesas_ibfk_1` FOREIGN KEY (`compra_parcelada_id`) REFERENCES `compras_parceladas` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=39 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=77 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -100,7 +100,7 @@ CREATE TABLE `despesas` (
 
 LOCK TABLES `despesas` WRITE;
 /*!40000 ALTER TABLE `despesas` DISABLE KEYS */;
-INSERT INTO `despesas` VALUES (20,'INTERNET WARYLEX SETEMBRO',129.90,'2025-09-15',NULL,'transporte',1,NULL,0),(21,'TV+STREAMS CLARO SETEMBRO',207.24,'2025-09-08','2025-10-03','Moradia',1,NULL,0),(26,'Playstation 5 Slim Digital (1/10)',345.00,'2025-09-14','2025-10-03','Gamer',1,2,0),(27,'Playstation 5 Slim Digital (2/10)',345.00,'2025-10-15',NULL,'Gamer',1,2,0),(28,'Playstation 5 Slim Digital (3/10)',345.00,'2025-11-14',NULL,'Gamer',1,2,0),(29,'Playstation 5 Slim Digital (4/10)',345.00,'2025-12-14',NULL,'Gamer',1,2,0),(30,'Playstation 5 Slim Digital (5/10)',345.00,'2026-01-14',NULL,'Gamer',1,2,0),(31,'Playstation 5 Slim Digital (6/10)',345.00,'2026-02-14',NULL,'Gamer',1,2,0),(32,'Playstation 5 Slim Digital (7/10)',345.00,'2026-03-14',NULL,'Gamer',1,2,0),(33,'Playstation 5 Slim Digital (8/10)',345.00,'2026-04-14',NULL,'Gamer',1,2,0),(34,'Playstation 5 Slim Digital (9/10)',345.00,'2026-05-14',NULL,'Gamer',1,2,0),(35,'Playstation 5 Slim Digital (10/10)',345.00,'2026-06-14',NULL,'Gamer',1,2,0),(36,'Pneu R15 e Acessorios R15 (1/3)',275.00,'2025-09-30','2025-10-03','Transporte',1,3,0),(37,'Pneu R15 e Acessorios R15 (2/3)',275.00,'2025-11-01',NULL,'Transporte',1,3,0),(38,'Pneu R15 e Acessorios R15 (3/3)',275.00,'2025-11-30',NULL,'Transporte',1,3,0);
+INSERT INTO `despesas` VALUES (20,'INTERNET WARYLEX SETEMBRO',133.34,'2025-09-15','2025-10-13','Moradia',1,NULL,0),(21,'TV+STREAMS CLARO SETEMBRO',207.24,'2025-09-08','2025-10-03','Moradia',1,NULL,0),(26,'Playstation 5 Slim Digital (1/10)',345.00,'2025-09-14','2025-10-03','Gamer',1,2,0),(27,'Playstation 5 Slim Digital (2/10)',345.00,'2025-10-15','2025-10-22','Gamer',1,2,0),(28,'Playstation 5 Slim Digital (3/10)',345.00,'2025-11-14',NULL,'Gamer',1,2,0),(29,'Playstation 5 Slim Digital (4/10)',345.00,'2025-12-14',NULL,'Gamer',1,2,0),(30,'Playstation 5 Slim Digital (5/10)',345.00,'2026-01-14',NULL,'Gamer',1,2,0),(31,'Playstation 5 Slim Digital (6/10)',345.00,'2026-02-14',NULL,'Gamer',1,2,0),(32,'Playstation 5 Slim Digital (7/10)',345.00,'2026-03-14',NULL,'Gamer',1,2,0),(33,'Playstation 5 Slim Digital (8/10)',345.00,'2026-04-14',NULL,'Gamer',1,2,0),(34,'Playstation 5 Slim Digital (9/10)',345.00,'2026-05-14',NULL,'Gamer',1,2,0),(35,'Playstation 5 Slim Digital (10/10)',345.00,'2026-06-14',NULL,'Gamer',1,2,0),(36,'Pneu R15 e Acessorios R15 (1/3)',275.00,'2025-09-30','2025-10-03','Transporte',1,3,0),(37,'Pneu R15 e Acessorios R15 (2/3)',275.00,'2025-11-01',NULL,'Transporte',1,3,0),(38,'Pneu R15 e Acessorios R15 (3/3)',275.00,'2025-11-30',NULL,'Transporte',1,3,0),(39,'Aluguel Apartamento',600.00,'2025-10-10','2025-10-13','Moradia',1,NULL,0),(40,'Condomínio Apartamento',440.00,'2025-10-03','2025-10-13','Moradia',1,NULL,0),(41,'Notebook Acer Nitro V15 RTX 4050 (1/12)',441.00,'2025-10-17','2025-10-22','Gamer',1,4,0),(42,'Notebook Acer Nitro V15 RTX 4050 (2/12)',441.00,'2025-11-12',NULL,'Gamer',1,4,0),(43,'Notebook Acer Nitro V15 RTX 4050 (3/12)',441.00,'2025-12-12',NULL,'Gamer',1,4,0),(44,'Notebook Acer Nitro V15 RTX 4050 (4/12)',441.00,'2026-01-12',NULL,'Gamer',1,4,0),(45,'Notebook Acer Nitro V15 RTX 4050 (5/12)',441.00,'2026-02-12',NULL,'Gamer',1,4,0),(46,'Notebook Acer Nitro V15 RTX 4050 (6/12)',441.00,'2026-03-12',NULL,'Gamer',1,4,0),(47,'Notebook Acer Nitro V15 RTX 4050 (7/12)',441.00,'2026-04-12',NULL,'Gamer',1,4,0),(48,'Notebook Acer Nitro V15 RTX 4050 (8/12)',441.00,'2026-05-12',NULL,'Gamer',1,4,0),(49,'Notebook Acer Nitro V15 RTX 4050 (9/12)',441.00,'2026-06-12',NULL,'Gamer',1,4,0),(50,'Notebook Acer Nitro V15 RTX 4050 (10/12)',441.00,'2026-07-12',NULL,'Gamer',1,4,0),(51,'Notebook Acer Nitro V15 RTX 4050 (11/12)',441.00,'2026-08-12',NULL,'Gamer',1,4,0),(52,'Notebook Acer Nitro V15 RTX 4050 (12/12)',441.00,'2026-09-12',NULL,'Gamer',1,4,0),(53,'Yamaha R15 Financiamento  (1/20)',687.05,'2025-10-12',NULL,'Transporte',1,5,0),(54,'Yamaha R15 Financiamento  (2/20)',687.05,'2025-11-12',NULL,'Transporte',1,5,0),(55,'Yamaha R15 Financiamento  (3/20)',687.05,'2025-12-12',NULL,'Transporte',1,5,0),(56,'Yamaha R15 Financiamento  (4/20)',687.05,'2026-01-12',NULL,'Transporte',1,5,0),(57,'Yamaha R15 Financiamento  (5/20)',687.05,'2026-02-12',NULL,'Transporte',1,5,0),(58,'Yamaha R15 Financiamento  (6/20)',687.05,'2026-03-12',NULL,'Transporte',1,5,0),(59,'Yamaha R15 Financiamento  (7/20)',687.05,'2026-04-12',NULL,'Transporte',1,5,0),(60,'Yamaha R15 Financiamento  (8/20)',687.05,'2026-05-12',NULL,'Transporte',1,5,0),(61,'Yamaha R15 Financiamento  (9/20)',687.05,'2026-06-12',NULL,'Transporte',1,5,0),(62,'Yamaha R15 Financiamento  (10/20)',687.05,'2026-07-12',NULL,'Transporte',1,5,0),(63,'Yamaha R15 Financiamento  (11/20)',687.05,'2026-08-12',NULL,'Transporte',1,5,0),(64,'Yamaha R15 Financiamento  (12/20)',687.05,'2026-09-12',NULL,'Transporte',1,5,0),(65,'Yamaha R15 Financiamento  (13/20)',687.05,'2026-10-12',NULL,'Transporte',1,5,0),(66,'Yamaha R15 Financiamento  (14/20)',687.05,'2026-11-12',NULL,'Transporte',1,5,0),(67,'Yamaha R15 Financiamento  (15/20)',687.05,'2026-12-12',NULL,'Transporte',1,5,0),(68,'Yamaha R15 Financiamento  (16/20)',687.05,'2027-01-12',NULL,'Transporte',1,5,0),(69,'Yamaha R15 Financiamento  (17/20)',687.05,'2027-02-12',NULL,'Transporte',1,5,0),(70,'Yamaha R15 Financiamento  (18/20)',687.05,'2027-03-12',NULL,'Transporte',1,5,0),(71,'Yamaha R15 Financiamento  (19/20)',687.05,'2027-04-12',NULL,'Transporte',1,5,0),(72,'Yamaha R15 Financiamento  (20/20)',687.05,'2027-05-12',NULL,'Transporte',1,5,0),(73,'Remédio Nexgard',40.00,'2025-10-27',NULL,'Pets',1,NULL,0),(74,'Cartão Digio',732.00,'2025-10-13','2025-10-13','Cartão de Crédito',1,NULL,0),(75,'Luz Apartamento Setembro',510.00,'2025-09-22','2025-10-13','Moradia',1,NULL,0),(76,'Luz Apartamento Outubro ',620.00,'2025-10-20',NULL,'Moradia',1,NULL,0);
 /*!40000 ALTER TABLE `despesas` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -210,7 +210,7 @@ CREATE TABLE `rendas_extras` (
   PRIMARY KEY (`id`),
   KEY `user_id_idx` (`user_id`),
   CONSTRAINT `fk_rendas_extras_usuario` FOREIGN KEY (`user_id`) REFERENCES `usuario` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -219,7 +219,7 @@ CREATE TABLE `rendas_extras` (
 
 LOCK TABLES `rendas_extras` WRITE;
 /*!40000 ALTER TABLE `rendas_extras` DISABLE KEYS */;
-INSERT INTO `rendas_extras` VALUES (1,1,'Venda fonte, cabo e bluetooh',290.00,'2025-10-03'),(2,2,'Vacina ',130.00,'2025-10-02');
+INSERT INTO `rendas_extras` VALUES (1,1,'Venda fonte, cabo e bluetooh',290.00,'2025-10-03'),(2,2,'Vacina ',130.00,'2025-10-02'),(3,1,'Troca do monitor husky por lg',300.00,'2025-10-10');
 /*!40000 ALTER TABLE `rendas_extras` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -259,4 +259,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-10-06  8:08:39
+-- Dump completed on 2025-10-23 11:13:56
