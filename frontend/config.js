@@ -1,7 +1,7 @@
 // frontend/config.js
 
 // Novo domínio configurado com HTTPS via Nginx e Certbot
-const API_DOMAIN = 'app-gastos.ddns.net';
+const API_DOMAIN = 'app-gastos2.ddns.net';
 // Use a variável API_DOMAIN para construir a URL completa com https://
 export const API_URL = `https://${API_DOMAIN}`;
 
