@@ -98,7 +98,6 @@ app.post("/login", async (req, res) => {
     }
 
     try {
-        // CORREÇÃO: Verificação simples
         if (!connection) {
              return res.status(503).send("Serviço indisponível (banco). Tente novamente.");
         }
@@ -109,6 +108,13 @@ app.post("/login", async (req, res) => {
         }
 
         const user = rows[0];
+        
+        // CORREÇÃO: Verifica se o usuário tem uma senha cadastrada para evitar erro no bcrypt
+        if (!user.password) {
+            console.error(`Usuário ${username} encontrado, mas sem campo 'password'.`);
+            return res.status(500).send("Erro interno do servidor: usuário sem senha.");
+        }
+        
         const isPasswordValid = await bcrypt.compare(password, user.password);
         if (!isPasswordValid) {
             return res.status(401).send("Senha inválida.");
@@ -132,7 +138,6 @@ app.post("/register", async (req, res) => {
     }
 
     try {
-       // ***** CORREÇÃO APLICADA AQUI *****
        if (!connection) {
              console.error("Tentativa de registro sem conexão válida com o banco.");
              return res.status(503).send("Serviço temporariamente indisponível (banco de dados). Tente novamente em breve.");
@@ -171,7 +176,6 @@ app.get("/", (req, res) => {
 
 app.get("/parcelamentos", verifyToken, async (req, res) => {
     try {
-        // ***** CORREÇÃO APLICADA AQUI *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const [rows] = await connection.execute(
             "SELECT * FROM compras_parceladas WHERE user_id = ? ORDER BY data_compra DESC",
@@ -184,9 +188,7 @@ app.get("/parcelamentos", verifyToken, async (req, res) => {
     }
 });
 
-// Rotas com 'transactionConnection' (POST, PUT, DELETE) estão OK, não usam o 'connection' global
 app.post("/parcelamentos", verifyToken, async (req, res) => {
-    // ... (Este código está OK) ...
     const { nome, valor_total, numero_parcelas, data_compra, data_primeira_parcela } = req.body;
     const userId = req.userId;
 
@@ -234,7 +236,6 @@ app.post("/parcelamentos", verifyToken, async (req, res) => {
 });
 
 app.put("/parcelamentos/:id", verifyToken, async (req, res) => {
-    // ... (Este código está OK) ...
     const { id } = req.params;
     const { nome, categoria } = req.body;
     const userId = req.userId;
@@ -277,7 +278,6 @@ app.put("/parcelamentos/:id", verifyToken, async (req, res) => {
 });
 
 app.delete("/parcelamentos/:id", verifyToken, async (req, res) => {
-    // ... (Este código está OK) ...
     const { id } = req.params;
     const userId = req.userId;
 
@@ -316,7 +316,6 @@ app.delete("/parcelamentos/:id", verifyToken, async (req, res) => {
 
 app.get("/despesas", verifyToken, async (req, res) => {
     try {
-        // ***** CORREÇÃO APLICADA AQUI *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const [rows] = await connection.execute("SELECT * FROM despesas WHERE user_id = ? ORDER BY data_vencimento DESC", [req.userId]);
         res.json(rows);
@@ -336,7 +335,6 @@ app.post("/despesas", verifyToken, async (req, res) => {
     const isFixo = fixo === true || fixo === 1 || fixo === 'true' || fixo === '1';
 
     try {
-        // ***** CORREÇÃO APLICADA AQUI *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const [result] = await connection.execute(
             "INSERT INTO despesas (nome, valor, data_vencimento, categoria, user_id, fixo) VALUES (?, ?, ?, ?, ?, ?)",
@@ -360,7 +358,6 @@ app.put("/despesas/:id/pagar", verifyToken, async (req, res) => {
     if (data_pagamento && isNaN(new Date(data_pagamento).getTime())) return res.status(400).send("Data de pagamento inválida.");
 
     try {
-        // ***** CORREÇÃO APLICADA AQUI *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const [result] = await connection.execute(
             "UPDATE despesas SET data_pagamento = ? WHERE id = ? AND user_id = ?",
@@ -385,7 +382,6 @@ app.put("/despesas/:id", verifyToken, async (req, res) => {
     const isFixo = fixo === true || fixo === 1 || fixo === 'true' || fixo === '1';
 
     try {
-        // ***** CORREÇÃO APLICADA AQUI *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const [result] = await connection.execute(
             "UPDATE despesas SET nome = ?, valor = ?, data_vencimento = ?, categoria = ?, fixo = ? WHERE id = ? AND user_id = ?",
@@ -404,7 +400,6 @@ app.delete("/despesas/:id", verifyToken, async (req, res) => {
     const { id } = req.params;
     const userId = req.userId;
     try {
-        // ***** CORREÇÃO APLICADA AQUI *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const [result] = await connection.execute(
             "DELETE FROM despesas WHERE id = ? AND user_id = ?",
@@ -422,7 +417,6 @@ app.delete("/despesas/:id", verifyToken, async (req, res) => {
 
 app.get("/metas", verifyToken, async (req, res) => {
     try {
-        // ***** CORREÇÃO APLICADA AQUI (Esta foi a que quebrou) *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const [rows] = await connection.execute("SELECT * FROM metas WHERE user_id = ? ORDER BY data_limite ASC", [req.userId]);
         res.json(rows);
@@ -441,7 +435,6 @@ app.post("/metas", verifyToken, async (req, res) => {
     const incluirHome = req.body.incluir_home === false ? 0 : 1;
 
     try {
-        // ***** CORREÇÃO APLICADA AQUI *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const [result] = await connection.execute(
             "INSERT INTO metas (nome, valor_alvo, data_limite, user_id, incluir_home) VALUES (?, ?, ?, ?, ?)",
@@ -465,7 +458,6 @@ app.put("/metas/:id", verifyToken, async (req, res) => {
     if (data_limite && isNaN(new Date(data_limite).getTime())) return res.status(400).send("Data limite inválida.");
 
     try {
-        // ***** CORREÇÃO APLICADA AQUI *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const [result] = await connection.execute(
             "UPDATE metas SET nome = ?, valor_alvo = ?, data_limite = ? WHERE id = ? AND user_id = ?",
@@ -483,7 +475,6 @@ app.delete("/metas/:id", verifyToken, async (req, res) => {
     const { id } = req.params;
     const userId = req.userId;
     try {
-        // ***** CORREÇÃO APLICADA AQUI *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const [result] = await connection.execute(
             "DELETE FROM metas WHERE id = ? AND user_id = ?",
@@ -501,7 +492,6 @@ app.put("/metas/:id/toggle-home", verifyToken, async (req, res) => {
     const { id } = req.params;
     const userId = req.userId;
     try {
-        // ***** CORREÇÃO APLICADA AQUI *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const [result] = await connection.execute(
             "UPDATE metas SET incluir_home = NOT incluir_home WHERE id = ? AND user_id = ?",
@@ -520,7 +510,6 @@ app.put("/metas/:id/toggle-home", verifyToken, async (req, res) => {
 
 app.get("/dividas", verifyToken, async (req, res) => {
     try {
-        // ***** CORREÇÃO APLICADA AQUI *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const [rows] = await connection.execute("SELECT * FROM dividas WHERE user_id = ? ORDER BY data_limite ASC", [req.userId]);
         res.json(rows);
@@ -541,7 +530,6 @@ app.post("/dividas", verifyToken, async (req, res) => {
     const incluirHome = req.body.incluir_home === false ? 0 : 1;
 
     try {
-        // ***** CORREÇÃO APLICADA AQUI *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const [result] = await connection.execute(
             "INSERT INTO dividas (nome, valor_total, valor_desconto, data_limite, user_id, incluir_home) VALUES (?, ?, ?, ?, ?, ?)",
@@ -567,7 +555,6 @@ app.put("/dividas/:id", verifyToken, async (req, res) => {
     const desconto = parseFloat(valor_desconto) || 0;
 
     try {
-        // ***** CORREÇÃO APLICADA AQUI *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const [result] = await connection.execute(
             "UPDATE dividas SET nome = ?, valor_total = ?, valor_desconto = ?, data_limite = ? WHERE id = ? AND user_id = ?",
@@ -585,7 +572,6 @@ app.delete("/dividas/:id", verifyToken, async (req, res) => {
     const { id } = req.params;
     const userId = req.userId;
     try {
-        // ***** CORREÇÃO APLICADA AQUI *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const [result] = await connection.execute(
             "DELETE FROM dividas WHERE id = ? AND user_id = ?",
@@ -603,7 +589,6 @@ app.put("/dividas/:id/toggle-home", verifyToken, async (req, res) => {
     const { id } = req.params;
     const userId = req.userId;
     try {
-        // ***** CORREÇÃO APLICADA AQUI *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const [result] = await connection.execute(
             "UPDATE dividas SET incluir_home = NOT incluir_home WHERE id = ? AND user_id = ?",
@@ -622,7 +607,6 @@ app.put("/dividas/:id/toggle-home", verifyToken, async (req, res) => {
 
 app.get("/usuario", verifyToken, async (req, res) => {
     try {
-        // ***** CORREÇÃO APLICADA AQUI *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const [rows] = await connection.execute("SELECT id, username, renda_mensal FROM usuario WHERE id = ?", [req.userId]);
         if (rows.length === 0) return res.status(404).send("Usuário não encontrado.");
@@ -641,7 +625,6 @@ app.put("/usuario", verifyToken, async (req, res) => {
        }
 
     try {
-        // ***** CORREÇÃO APLICADA AQUI *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const [result] = await connection.execute(
             "UPDATE usuario SET renda_mensal = ? WHERE id = ?",
@@ -662,7 +645,6 @@ app.put("/usuario/senha", verifyToken, async (req, res) => {
     if (newPassword.length < 6) return res.status(400).send("A senha deve ter pelo menos 6 caracteres.");
 
     try {
-        // ***** CORREÇÃO APLICADA AQUI *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const hashedPassword = await bcrypt.hash(newPassword, 10);
         const [result] = await connection.execute(
@@ -678,7 +660,6 @@ app.put("/usuario/senha", verifyToken, async (req, res) => {
 });
 
 app.delete("/usuario", verifyToken, async (req, res) => {
-    // ... (Este código está OK) ...
     const userId = req.userId;
     let transactionConnection;
     try {
@@ -725,7 +706,6 @@ app.get("/despesas/categorias-mes", verifyToken, async (req, res) => {
     const userId = req.userId;
     if (!mes || !ano || isNaN(parseInt(mes)) || isNaN(parseInt(ano))) return res.status(400).send("Parâmetros 'mes' e 'ano' são obrigatórios e devem ser números.");
     try {
-        // ***** CORREÇÃO APLICADA AQUI *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const [rows] = await connection.execute(
             `SELECT categoria, SUM(valor) as total FROM despesas WHERE user_id = ? AND MONTH(data_pagamento) = ? AND YEAR(data_pagamento) = ? AND data_pagamento IS NOT NULL GROUP BY categoria ORDER BY total DESC`,
@@ -741,7 +721,6 @@ app.get("/despesas/categorias-mes", verifyToken, async (req, res) => {
 app.get("/despesas/gastos-mensais", verifyToken, async (req, res) => {
     const userId = req.userId;
     try {
-        // ***** CORREÇÃO APLICADA AQUI *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const [rows] = await connection.execute(
             `SELECT YEAR(data_pagamento) as ano, MONTH(data_pagamento) as mes, SUM(valor) as total FROM despesas WHERE user_id = ? AND data_pagamento IS NOT NULL GROUP BY YEAR(data_pagamento), MONTH(data_pagamento) ORDER BY ano DESC, mes DESC LIMIT 12`,
@@ -758,7 +737,6 @@ app.get("/despesas/gastos-mensais", verifyToken, async (req, res) => {
 app.get("/despesas/projecao", verifyToken, async (req, res) => {
     const userId = req.userId;
     try {
-        // ***** CORREÇÃO APLICADA AQUI (Provavelmente a "dados da home" que falhou) *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const hoje = new Date();
         const mes = hoje.getMonth() + 1;
@@ -793,7 +771,6 @@ app.get("/despesas/projecao", verifyToken, async (req, res) => {
 
 app.get("/categorias", verifyToken, async (req, res) => {
     try {
-        // ***** CORREÇÃO APLICADA AQUI *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const [rows] = await connection.execute("SELECT * FROM categorias ORDER BY nome ASC");
         res.json(rows);
@@ -807,7 +784,6 @@ app.post("/categorias", verifyToken, async (req, res) => {
     const { nome, icone } = req.body;
     if (!nome || !icone) return res.status(400).send("Nome e ícone são obrigatórios.");
     try {
-        // ***** CORREÇÃO APLICADA AQUI *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const [existing] = await connection.execute("SELECT id FROM categorias WHERE nome = ?", [nome]);
         if (existing.length > 0) return res.status(409).send("Já existe uma categoria com este nome.");
@@ -827,7 +803,6 @@ app.put("/categorias/:id", verifyToken, async (req, res) => {
     if (!nome || !icone) return res.status(400).send("Nome e ícone são obrigatórios.");
 
     try {
-        // ***** CORREÇÃO APLICADA AQUI *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const [existing] = await connection.execute("SELECT id FROM categorias WHERE nome = ? AND id != ?", [nome, id]);
         if (existing.length > 0) return res.status(409).send("Já existe outra categoria com este nome.");
@@ -846,7 +821,6 @@ app.put("/categorias/:id", verifyToken, async (req, res) => {
 app.delete("/categorias/:id", verifyToken, async (req, res) => {
     const { id } = req.params;
     try {
-        // ***** CORREÇÃO APLICADA AQUI *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const [result] = await connection.execute("DELETE FROM categorias WHERE id = ?", [id]);
         if (result.affectedRows === 0) return res.status(404).send("Categoria não encontrada.");
@@ -864,7 +838,6 @@ app.get("/rendas-extras", verifyToken, async (req, res) => {
     const userId = req.userId;
     if (!mes || !ano || isNaN(parseInt(mes)) || isNaN(parseInt(ano))) return res.status(400).send("Parâmetros 'mes' e 'ano' são obrigatórios e devem ser números.");
     try {
-        // ***** CORREÇÃO APLICADA AQUI *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const [rows] = await connection.execute(
             "SELECT * FROM rendas_extras WHERE user_id = ? AND MONTH(data_recebimento) = ? AND YEAR(data_recebimento) = ? ORDER BY data_recebimento DESC",
@@ -885,7 +858,6 @@ app.post("/rendas-extras", verifyToken, async (req, res) => {
     if (isNaN(new Date(data_recebimento).getTime())) return res.status(400).send("Data de recebimento inválida.");
 
     try {
-        // ***** CORREÇÃO APLICADA AQUI *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const [result] = await connection.execute(
             "INSERT INTO rendas_extras (nome, valor, data_recebimento, user_id) VALUES (?, ?, ?, ?)",
@@ -907,7 +879,6 @@ app.put("/rendas-extras/:id", verifyToken, async (req, res) => {
     if (isNaN(new Date(data_recebimento).getTime())) return res.status(400).send("Data de recebimento inválida.");
 
     try {
-        // ***** CORREÇÃO APLICADA AQUI *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const [result] = await connection.execute(
             "UPDATE rendas_extras SET nome = ?, valor = ?, data_recebimento = ? WHERE id = ? AND user_id = ?",
@@ -925,7 +896,6 @@ app.delete("/rendas-extras/:id", verifyToken, async (req, res) => {
     const { id } = req.params;
     const userId = req.userId;
     try {
-        // ***** CORREÇÃO APLICADA AQUI *****
         if (!connection) throw new Error("Conexão com o banco não está disponível.");
         const [result] = await connection.execute(
             "DELETE FROM rendas_extras WHERE id = ? AND user_id = ?",
