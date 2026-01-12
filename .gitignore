@@ -1,8 +1,9 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
 ### DEPENDÊNCIAS ###
-# Ignora node_modules em qualquer pasta (raiz, frontend, backend )
+# Ignora node_modules em qualquer pasta (raiz, frontend, backend)
 node_modules/
+**/node_modules/
 
 ### EXPO ###
 # Pastas de cache e build do Expo
@@ -10,16 +11,30 @@ node_modules/
 dist/
 web-build/
 expo-env.d.ts
+# Ignora caches específicos dentro do frontend
+frontend/.expo/
+frontend/dist/
 
 # Metro bundler
 .metro-health-check*
 
 ### NATIVE (ANDROID/IOS) ###
 # Pastas geradas para builds nativos
-/android
-/ios
+android/
+ios/
+frontend/android/
+frontend/ios/
 .kotlin/
 *.orig.*
+
+### ARQUIVOS QUE NÃO DEVEM SUBIR (LIMPEZA) ###
+# Bloqueia arquivos pesados e dumps que estavam subindo por erro
+*.apk
+*.sql
+*.png
+*.jpg
+*.jpeg
+*.zip
 
 ### ARQUIVOS SENSÍVEIS E DE AMBIENTE ###
 # Chaves de acesso e segredos
