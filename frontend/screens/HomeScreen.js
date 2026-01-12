@@ -11,7 +11,7 @@ import {
     Modal,
     TextInput,
     Alert,
-    Platform // Platform já estava importado, ótimo!
+    Platform 
 } from 'react-native';
 import { Card, ProgressBar, Button, Title, Paragraph, IconButton } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
@@ -222,18 +222,16 @@ export default function HomeScreen({ navigation }) {
 
     const styles = StyleSheet.create({
         container: { flex: 1, backgroundColor: theme.background },
-        scrollViewContent: { padding: 20, paddingBottom: 80 },
+        scrollViewContent: { padding: 20, paddingBottom: 110 }, // Aumentado para visibilidade na Web
         loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
         greeting: { fontSize: 22, fontWeight: 'bold', color: theme.text, textAlign: 'center', marginTop: 20 },
         title: { fontSize: 18, color: theme.subText, textAlign: 'center', marginBottom: 20 },
-        // ATUALIZAÇÃO 1: Estilo do Card modificado para ser multi-plataforma
         card: {
             marginBottom: 15,
             backgroundColor: theme.cardBackground,
+            overflow: 'hidden', // Previne elementos saindo do card na Web
             ...Platform.select({
-                android: {
-                    elevation: 3,
-                },
+                android: { elevation: 3 },
                 ios: {
                     shadowColor: '#000',
                     shadowOffset: { width: 0, height: 1 },
@@ -267,12 +265,12 @@ export default function HomeScreen({ navigation }) {
         input: { borderWidth: 1, borderColor: theme.subText, padding: 10, marginBottom: 20, borderRadius: 6, color: theme.text },
         buttonContainer: { flexDirection: 'row', justifyContent: 'space-around', width: '100%', marginTop: 10},
         modalButton: { flex: 1, marginHorizontal: 5 },
-        goalText: { fontSize: 14, textAlign: 'center', color: theme.text, marginBottom: 4, },
-        goalValue: { fontSize: 20, fontWeight: 'bold', color: theme.secondary, },
+        goalText: { fontSize: 14, textAlign: 'center', color: theme.text, marginBottom: 4 },
+        goalValue: { fontSize: 20, fontWeight: 'bold', color: theme.secondary },
         detailsLink: { marginTop: 10, fontSize: 12, color: theme.secondary, textDecorationLine: 'underline' },
-        itemListContainer: { alignSelf: 'stretch', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderColor: theme.subText, paddingHorizontal: 15, },
-        itemListTitle: { fontSize: 12, color: theme.subText, fontWeight: 'bold', marginBottom: 5, textAlign: 'center', },
-        itemText: { fontSize: 12, color: theme.text, textAlign: 'center', },
+        itemListContainer: { alignSelf: 'stretch', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderColor: theme.subText, paddingHorizontal: 15 },
+        itemListTitle: { fontSize: 12, color: theme.subText, fontWeight: 'bold', marginBottom: 5, textAlign: 'center' },
+        itemText: { fontSize: 12, color: theme.text, textAlign: 'center' },
         itemRow: {
             flexDirection: 'row',
             justifyContent: 'space-between',
@@ -281,11 +279,7 @@ export default function HomeScreen({ navigation }) {
             borderBottomWidth: 1,
             borderBottomColor: theme.subText
         },
-        noDataText: {
-            textAlign: 'center',
-            marginVertical: 10,
-            color: theme.subText
-        },
+        noDataText: { textAlign: 'center', marginVertical: 10, color: theme.subText },
         datePickerButton: {
           width: '100%',
           padding: 10,
@@ -316,7 +310,11 @@ export default function HomeScreen({ navigation }) {
                 {overdueExpenses.length > 0 && (
                     <TouchableOpacity onPress={() => navigation.navigate('Despesas', { initialTab: 'overdue' })}>
                         <Card style={[styles.card, styles.overdueCard]}>
-                            <Card.Title title={`Você tem ${overdueExpenses.length} conta(s) atrasada(s)!`} titleStyle={styles.overdueTitle} left={() => <Ionicons name="alert-circle" size={24} color="#fff" />}/>
+                            <Card.Title 
+                                title={`Você tem ${overdueExpenses.length} conta(s) atrasada(s)!`} 
+                                titleStyle={styles.overdueTitle} 
+                                left={() => <Ionicons name="alert-circle" size={24} color="#fff" />}
+                            />
                         </Card>
                     </TouchableOpacity>
                 )}
@@ -324,15 +322,25 @@ export default function HomeScreen({ navigation }) {
                 <Card style={styles.card}>
                     <Card.Content>
                         <Text style={styles.summaryLabel}>Saldo Disponível do Mês</Text>
-                        <Text style={[styles.summaryBalance, saldoDisponivel < 0 ? styles.negativeSaldo : styles.positiveSaldo]}>R$ {saldoDisponivel.toFixed(2)}</Text>
-                        {/* ATUALIZAÇÃO 2: Adicionado 'useNativeDriver' condicional */}
-                        <ProgressBar progress={progresso} color={progresso > 0.8 ? theme.danger : theme.primary} style={styles.progressBar} useNativeDriver={Platform.OS !== 'web'} />
+                        <Text style={[styles.summaryBalance, saldoDisponivel < 0 ? styles.negativeSaldo : styles.positiveSaldo]}>
+                            R$ {saldoDisponivel.toFixed(2)}
+                        </Text>
+                        <ProgressBar 
+                            progress={progresso} 
+                            color={progresso > 0.8 ? theme.danger : theme.primary} 
+                            style={styles.progressBar} 
+                        />
                         <Text style={styles.progressText}>{`${(progresso * 100).toFixed(0)}% do seu orçamento utilizado`}</Text>
                         <View style={styles.summaryDetails}>
                             <TouchableOpacity onPress={() => navigation.navigate('Conta')} style={styles.summaryRow}>
-                                <Ionicons name="arrow-up-circle-outline" size={20} color="green" /><Text style={styles.summaryDetailText}>Renda Fixa: R$ {rendaMensal.toFixed(2)}</Text><Ionicons name="pencil" size={16} color={theme.subText} style={{marginLeft: 'auto'}} />
+                                <Ionicons name="arrow-up-circle-outline" size={20} color="green" />
+                                <Text style={styles.summaryDetailText}>Renda Fixa: R$ {rendaMensal.toFixed(2)}</Text>
+                                <Ionicons name="pencil" size={16} color={theme.subText} style={{marginLeft: 'auto'}} />
                             </TouchableOpacity>
-                            <View style={styles.summaryRow}><Ionicons name="arrow-down-circle-outline" size={20} color="red" /><Text style={styles.summaryDetailText}>Despesas Pagas: R$ {despesasPagasMes.toFixed(2)}</Text></View>
+                            <View style={styles.summaryRow}>
+                                <Ionicons name="arrow-down-circle-outline" size={20} color="red" />
+                                <Text style={styles.summaryDetailText}>Despesas Pagas: R$ {despesasPagasMes.toFixed(2)}</Text>
+                            </View>
                         </View>
                     </Card.Content>
                 </Card>
@@ -368,7 +376,10 @@ export default function HomeScreen({ navigation }) {
                                 <Title style={styles.goalValue}>R$ {debtSavingsGoals.daily.toFixed(2)} por dia</Title>
                                 <Paragraph style={styles.goalText}>ou</Paragraph>
                                 <Title style={styles.goalValue}>R$ {debtSavingsGoals.monthly.toFixed(2)} por mês</Title>
-                                <View style={styles.itemListContainer}><Text style={styles.itemListTitle}>Considerando as dívidas:</Text>{homeDividas.map(divida => (<Text key={divida.id} style={styles.itemText}>- {divida.nome}</Text>))}</View>
+                                <View style={styles.itemListContainer}>
+                                    <Text style={styles.itemListTitle}>Considerando as dívidas:</Text>
+                                    {homeDividas.map(divida => (<Text key={divida.id} style={styles.itemText}>- {divida.nome}</Text>))}
+                                </View>
                                 <Text style={styles.detailsLink}>Ver detalhes...</Text>
                             </Card.Content>
                         </Card>
@@ -384,7 +395,10 @@ export default function HomeScreen({ navigation }) {
                                 <Title style={[styles.goalValue, {color: isDarkTheme ? "#64b5f6" : "#0d47a1"}]}>R$ {goalSavings.daily.toFixed(2)} por dia</Title>
                                 <Paragraph style={styles.goalText}>ou</Paragraph>
                                 <Title style={[styles.goalValue, {color: isDarkTheme ? "#64b5f6" : "#0d47a1"}]}>R$ {goalSavings.monthly.toFixed(2)} por mês</Title>
-                                <View style={styles.itemListContainer}><Text style={styles.itemListTitle}>Considerando as metas:</Text>{homeMetas.map(meta => (<Text key={meta.id} style={styles.itemText}>- {meta.nome}</Text>))}</View>
+                                <View style={styles.itemListContainer}>
+                                    <Text style={styles.itemListTitle}>Considerando as metas:</Text>
+                                    {homeMetas.map(meta => (<Text key={meta.id} style={styles.itemText}>- {meta.nome}</Text>))}
+                                </View>
                                 <Text style={styles.detailsLink}>Ver detalhes...</Text>
                             </Card.Content>
                         </Card>
@@ -395,27 +409,56 @@ export default function HomeScreen({ navigation }) {
                     <Card style={styles.card}>
                         <Card.Title titleStyle={{ color: theme.text, fontWeight: 'bold' }} title="Próximas a Vencer (30 dias)" />
                         <Card.Content>
-                            {upcomingExpenses.map(expense => (<View key={expense.id} style={styles.upcomingRow}><Text style={styles.upcomingText}>{expense.nome}</Text><View style={styles.upcomingDetails}><Text style={styles.upcomingDate}>{new Date(expense.data_vencimento).toLocaleDateString()}</Text><Text style={styles.upcomingValue}>R$ {parseFloat(expense.valor).toFixed(2)}</Text></View></View>))}
+                            {upcomingExpenses.map(expense => (
+                                <View key={expense.id} style={styles.upcomingRow}>
+                                    <Text style={styles.upcomingText}>{expense.nome}</Text>
+                                    <View style={styles.upcomingDetails}>
+                                        <Text style={styles.upcomingDate}>{new Date(expense.data_vencimento).toLocaleDateString()}</Text>
+                                        <Text style={styles.upcomingValue}>R$ {parseFloat(expense.valor).toFixed(2)}</Text>
+                                    </View>
+                                </View>
+                            ))}
                         </Card.Content>
                     </Card>
                 )}
 
                 <Modal visible={rendaModalVisible} onRequestClose={() => setRendaModalVisible(false)} transparent={true} animationType="fade">
-                    <View style={styles.modalContainer}><View style={styles.modalContent}><Title style={styles.modalTitle}>Atualizar Renda Mensal</Title><TextInput style={styles.input} placeholder="Digite o novo valor da renda" keyboardType="numeric" value={inputRenda || ''} onChangeText={setInputRenda} /><View style={styles.buttonContainer}><Button mode="outlined" onPress={() => setRendaModalVisible(false)} style={styles.modalButton}>Cancelar</Button><Button mode="contained" onPress={handleUpdateRenda} style={styles.modalButton}>Salvar</Button></View></View></View>
+                    <View style={styles.modalContainer}>
+                        <View style={styles.modalContent}>
+                            <Title style={styles.modalTitle}>Atualizar Renda Mensal</Title>
+                            <TextInput 
+                                style={styles.input} 
+                                placeholder="Digite o novo valor da renda" 
+                                keyboardType="numeric" 
+                                value={inputRenda || ''} 
+                                onChangeText={setInputRenda} 
+                            />
+                            <View style={styles.buttonContainer}>
+                                <Button mode="outlined" onPress={() => setRendaModalVisible(false)} style={styles.modalButton}>Cancelar</Button>
+                                <Button mode="contained" onPress={handleUpdateRenda} style={styles.modalButton}>Salvar</Button>
+                            </View>
+                        </View>
+                    </View>
                 </Modal>
             </ScrollView>
 
+            {/* Modais de Renda Extra */}
             {addRendaExtraModalVisible && (
                 <Modal visible={addRendaExtraModalVisible} onRequestClose={() => setAddRendaExtraModalVisible(false)} transparent>
                     <View style={styles.modalContainer}>
-                    <View style={styles.modalContent}>
-                        <Title style={{ color: theme.text }}>Adicionar Renda Extra</Title>
-                        <TextInput style={styles.input} placeholder="Descrição (ex: Freelance)" placeholderTextColor={theme.subText} value={newRendaExtra.nome} onChangeText={t => setNewRendaExtra({...newRendaExtra, nome: t})} />
-                        <TextInput style={styles.input} placeholder="Valor" placeholderTextColor={theme.subText} keyboardType="numeric" value={newRendaExtra.valor} onChangeText={t => setNewRendaExtra({...newRendaExtra, valor: t})} />
-                        <TouchableOpacity style={styles.datePickerButton} onPress={() => setShowDatePicker('new')}><Text style={{ color: theme.text }}>Data: {newRendaExtra.data_recebimento.toLocaleDateString()}</Text></TouchableOpacity>
-                        {showDatePicker === 'new' && <DateTimePicker value={newRendaExtra.data_recebimento} mode="date" display="default" onChange={(e,d) => onChangeDate(e,d,'new')} />}
-                        <View style={styles.buttonContainer}><Button mode="outlined" onPress={() => setAddRendaExtraModalVisible(false)}>Cancelar</Button><Button mode="contained" onPress={handleAddRendaExtra}>Salvar</Button></View>
-                    </View>
+                        <View style={styles.modalContent}>
+                            <Title style={{ color: theme.text }}>Adicionar Renda Extra</Title>
+                            <TextInput style={styles.input} placeholder="Descrição (ex: Freelance)" placeholderTextColor={theme.subText} value={newRendaExtra.nome} onChangeText={t => setNewRendaExtra({...newRendaExtra, nome: t})} />
+                            <TextInput style={styles.input} placeholder="Valor" placeholderTextColor={theme.subText} keyboardType="numeric" value={newRendaExtra.valor} onChangeText={t => setNewRendaExtra({...newRendaExtra, valor: t})} />
+                            <TouchableOpacity style={styles.datePickerButton} onPress={() => setShowDatePicker('new')}>
+                                <Text style={{ color: theme.text }}>Data: {newRendaExtra.data_recebimento.toLocaleDateString()}</Text>
+                            </TouchableOpacity>
+                            {showDatePicker === 'new' && <DateTimePicker value={newRendaExtra.data_recebimento} mode="date" display="default" onChange={(e,d) => onChangeDate(e,d,'new')} />}
+                            <View style={styles.buttonContainer}>
+                                <Button mode="outlined" onPress={() => setAddRendaExtraModalVisible(false)}>Cancelar</Button>
+                                <Button mode="contained" onPress={handleAddRendaExtra}>Salvar</Button>
+                            </View>
+                        </View>
                     </View>
                 </Modal>
             )}
@@ -423,14 +466,19 @@ export default function HomeScreen({ navigation }) {
             {editingRendaExtra && (
                 <Modal visible={editRendaExtraModalVisible} onRequestClose={() => setEditRendaExtraModalVisible(false)} transparent>
                     <View style={styles.modalContainer}>
-                    <View style={styles.modalContent}>
-                        <Title style={{ color: theme.text }}>Editar Renda Extra</Title>
-                        <TextInput style={styles.input} placeholder="Descrição" placeholderTextColor={theme.subText} value={editingRendaExtra.nome} onChangeText={t => setEditingRendaExtra({...editingRendaExtra, nome: t})} />
-                        <TextInput style={styles.input} placeholder="Valor" placeholderTextColor={theme.subText} keyboardType="numeric" value={String(editingRendaExtra.valor)} onChangeText={t => setEditingRendaExtra({...editingRendaExtra, valor: t})} />
-                        <TouchableOpacity style={styles.datePickerButton} onPress={() => setShowDatePicker('edit')}><Text style={{ color: theme.text }}>Data: {editingRendaExtra.data_recebimento.toLocaleDateString()}</Text></TouchableOpacity>
-                        {showDatePicker === 'edit' && <DateTimePicker value={editingRendaExtra.data_recebimento} mode="date" display="default" onChange={(e,d) => onChangeDate(e,d,'edit')} />}
-                        <View style={styles.buttonContainer}><Button mode="outlined" onPress={() => setEditRendaExtraModalVisible(false)}>Cancelar</Button><Button mode="contained" onPress={handleUpdateRendaExtra}>Salvar</Button></View>
-                    </View>
+                        <View style={styles.modalContent}>
+                            <Title style={{ color: theme.text }}>Editar Renda Extra</Title>
+                            <TextInput style={styles.input} placeholder="Descrição" placeholderTextColor={theme.subText} value={editingRendaExtra.nome} onChangeText={t => setEditingRendaExtra({...editingRendaExtra, nome: t})} />
+                            <TextInput style={styles.input} placeholder="Valor" placeholderTextColor={theme.subText} keyboardType="numeric" value={String(editingRendaExtra.valor)} onChangeText={t => setEditingRendaExtra({...editingRendaExtra, valor: t})} />
+                            <TouchableOpacity style={styles.datePickerButton} onPress={() => setShowDatePicker('edit')}>
+                                <Text style={{ color: theme.text }}>Data: {editingRendaExtra.data_recebimento.toLocaleDateString()}</Text>
+                            </TouchableOpacity>
+                            {showDatePicker === 'edit' && <DateTimePicker value={editingRendaExtra.data_recebimento} mode="date" display="default" onChange={(e,d) => onChangeDate(e,d,'edit')} />}
+                            <View style={styles.buttonContainer}>
+                                <Button mode="outlined" onPress={() => setEditRendaExtraModalVisible(false)}>Cancelar</Button>
+                                <Button mode="contained" onPress={handleUpdateRendaExtra}>Salvar</Button>
+                            </View>
+                        </View>
                     </View>
                 </Modal>
             )}
