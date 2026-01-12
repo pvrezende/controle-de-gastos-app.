@@ -1,27 +1,19 @@
 {
   "expo": {
-    "name": "Controle de Gastos V2",
-    "slug": "controle-gastos-v2",
-    "version": "1.0.1",
+    "name": "App Gastos Novo",
+    "slug": "app-gastos-final",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "ios": {
-      "supportsTablet": true
-    },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "package": "com.pvrezende23.controle_gastos_v2",
+      "package": "com.gastos.novo",
       "versionCode": 1,
       "usesCleartextTraffic": true
     },
     "web": {
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
-    },
-    "plugins": []
+    }
   }
 }
