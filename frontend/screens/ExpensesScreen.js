@@ -1,6 +1,6 @@
 // frontend/screens/ExpensesScreen.js
 import React, { useState, useEffect, useCallback, useContext } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity, Modal, TextInput, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity, Modal, TextInput, Alert, Platform, Dimensions } from 'react-native';
 import { Card, Title, Paragraph, Button, FAB, Menu, IconButton } from 'react-native-paper';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -9,6 +9,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { AuthContext } from '../context/AuthContext';
 import { ThemeContext } from '../context/ThemeContext';
 
+const { width } = Dimensions.get('window');
+const isSmallDevice = width < 400;
+
 export default function ExpensesScreen({ route, navigation }) {
     const { api } = useContext(AuthContext);
     const { theme, isDarkTheme } = useContext(ThemeContext);
@@ -16,7 +19,7 @@ export default function ExpensesScreen({ route, navigation }) {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     
-    // CONFIGURAÇÃO INICIAL: ABA GERAL (INTERVALO) É A PRIMEIRA EXIBIDA
+    // ABA GERAL (INTERVALO) DEFINIDA COMO ESTADO INICIAL
     const [selectedTab, setSelectedTab] = useState('all'); 
     
     const [parcelamentos, setParcelamentos] = useState([]);
@@ -24,7 +27,7 @@ export default function ExpensesScreen({ route, navigation }) {
     const [totalPagoMes, setTotalPagoMes] = useState(0);
     const [totalPagoGeral, setTotalPagoGeral] = useState(0);
 
-    // ESTADOS PARA FILTRO DE PERÍODO (INÍCIO E FIM) - PERMITE ANOS DIFERENTES
+    // ESTADOS PARA FILTRO DE PERÍODO (INÍCIO E FIM) - SUPORTA ANOS DIFERENTES
     const [monthStart, setMonthStart] = useState(new Date().getMonth() + 1);
     const [yearStart, setYearStart] = useState(new Date().getFullYear());
     const [monthEnd, setMonthEnd] = useState(new Date().getMonth() + 1);
@@ -35,11 +38,8 @@ export default function ExpensesScreen({ route, navigation }) {
 
     const [newExpense, setNewExpense] = useState({ nome: '', valor: '', data_vencimento: new Date(), categoria: 'outros' });
     const [newParcelamento, setNewParcelamento] = useState({
-        nome: '',
-        valor_total: '',
-        numero_parcelas: '',
-        data_compra: new Date(),
-        data_primeira_parcela: new Date(),
+        nome: '', valor_total: '', numero_parcelas: '',
+        data_compra: new Date(), data_primeira_parcela: new Date(),
     });
 
     const [showExpensePicker, setShowExpensePicker] = useState(false);
@@ -92,14 +92,11 @@ export default function ExpensesScreen({ route, navigation }) {
                 value={value.toISOString().split('T')[0]}
                 onChange={(e) => onChange(null, new Date(e.target.value + 'T12:00:00'))}
                 style={{
-                    padding: '10px',
-                    borderRadius: '6px',
+                    padding: '10px', borderRadius: '6px', 
                     border: `1px solid ${theme.subText}`,
                     backgroundColor: isDarkTheme ? '#2c2c2c' : '#fff',
                     color: isDarkTheme ? '#fff' : '#000',
-                    width: '100%',
-                    fontSize: '16px',
-                    outline: 'none'
+                    width: '100%', fontSize: '16px'
                 }}
             />
         </View>
@@ -120,7 +117,7 @@ export default function ExpensesScreen({ route, navigation }) {
     }, [route.params?.initialTab]);
 
     const tabNames = {
-        all: 'Geral',
+        all: 'Geral (Intervalo)',
         current: 'Mês Atual',
         future: 'Próximos',
         overdue: 'Atrasadas',
@@ -148,14 +145,15 @@ export default function ExpensesScreen({ route, navigation }) {
                 api.get('/despesas'),
                 api.get('/parcelamentos')
             ]);
-            setDespesas(despesasResponse.data);
+            const todasDespesas = despesasResponse.data;
+            setDespesas(todasDespesas);
             setParcelamentos(parcelamentosResponse.data);
             
             const hoje = new Date();
             const mesAtual = hoje.getMonth() + 1;
             const anoAtual = hoje.getFullYear();
 
-            const totalPagoNoMes = despesasResponse.data
+            const totalPagoNoMes = todasDespesas
                 .filter(d => {
                     if (!d.data_pagamento) return false;
                     const p = d.data_pagamento.split('T')[0].split('-');
@@ -164,7 +162,7 @@ export default function ExpensesScreen({ route, navigation }) {
                 .reduce((sum, d) => sum + parseFloat(d.valor), 0);
             setTotalPagoMes(totalPagoNoMes);
 
-            const totalGeralPago = despesasResponse.data
+            const totalGeralPago = todasDespesas
                 .filter(d => d.data_pagamento !== null)
                 .reduce((sum, d) => sum + parseFloat(d.valor), 0);
             setTotalPagoGeral(totalGeralPago);
@@ -417,23 +415,20 @@ export default function ExpensesScreen({ route, navigation }) {
             flexDirection: 'column', 
             alignItems: 'flex-start' 
         },
-        filterLabel: { color: theme.text, fontSize: 13, marginBottom: 5, fontWeight: 'bold' },
+        filterLabel: { color: theme.text, fontSize: 14, marginBottom: 4, fontWeight: 'bold' },
         filterRow: { 
-            flexDirection: Platform.OS === 'android' ? 'column' : 'row',
-            alignItems: Platform.OS === 'web' ? 'center' : 'flex-start',
-            gap: 12, marginTop: 10, width: '100%',
-            justifyContent: Platform.OS === 'web' ? 'flex-end' : 'flex-start'
+            flexDirection: Platform.OS === 'web' && width >= 768 ? 'row' : 'column',
+            alignItems: 'flex-start', gap: 12, marginTop: 10, width: '100%' 
         },
+        sectionContainer: { width: Platform.OS === 'web' && width >= 768 ? 'auto' : '100%' },
         pickerWrapper: { 
             backgroundColor: isDarkTheme ? '#333333' : '#fff', borderRadius: 6, borderWidth: 1, 
             borderColor: theme.subText, overflow: 'hidden', justifyContent: 'center',
-            width: Platform.OS === 'android' ? '100%' : 'auto',
-            minWidth: Platform.OS === 'web' ? 120 : 'none'
+            width: isSmallDevice ? '48%' : 120, // EVITA TRANSBORDAMENTO EM CELULAR PEQUENO
         },
         webPicker: {
             backgroundColor: isDarkTheme ? '#333333' : '#fff', color: isDarkTheme ? '#fff' : '#000',
-            border: 'none', padding: '8px', fontSize: '14px', outline: 'none', cursor: 'pointer',
-            width: '100%'
+            border: 'none', padding: '8px', fontSize: '14px', cursor: 'pointer', width: '100%'
         },
         menuAnchorButton: { backgroundColor: theme.cardBackground, elevation: 2, borderWidth: 1, borderColor: theme.subText },
         listContainer: { flex: 1, paddingHorizontal: 20 },
@@ -443,8 +438,7 @@ export default function ExpensesScreen({ route, navigation }) {
         modalTitle: { fontSize: 22, fontWeight: 'bold', marginBottom: 15, textAlign: 'center', color: theme.text },
         input: { borderWidth: 1, borderColor: theme.subText, padding: 10, marginBottom: 10, borderRadius: 6, backgroundColor: isDarkTheme ? '#333' : '#fff', color: theme.text },
         datePickerButton: { width: '100%', padding: 10, borderWidth: 1, borderColor: theme.subText, borderRadius: 6, marginBottom: 10, justifyContent: 'center', alignItems: 'center' },
-        picker: { color: isDarkTheme ? '#FFFFFF' : '#000000', backgroundColor: 'transparent', height: Platform.OS === 'android' ? 50 : 'auto' },
-        pickerItem: { color: isDarkTheme ? '#FFFFFF' : '#000000' },
+        picker: { color: isDarkTheme ? '#FFFFFF' : '#000000', backgroundColor: 'transparent', height: 50 },
         fabSubButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.cardBackground, padding: 10, borderRadius: 30, marginBottom: 10, elevation: 5 },
     });
 
@@ -476,25 +470,21 @@ export default function ExpensesScreen({ route, navigation }) {
 
                 {selectedTab === 'all' && (
                     <View style={styles.filterRow}>
-                        <View style={Platform.OS === 'web' ? {flexDirection: 'row', alignItems: 'center', gap: 8} : {width: '100%'}}>
+                        <View style={styles.sectionContainer}>
                             <Text style={styles.filterLabel}>De:</Text>
-                            <View style={{flexDirection: 'row', gap: 4, width: Platform.OS === 'android' ? '100%' : 'auto'}}>
-                                <View style={[styles.pickerWrapper, {flex: 1}]}>
+                            <View style={{flexDirection: 'row', gap: 6, justifyContent: 'space-between'}}>
+                                <View style={styles.pickerWrapper}>
                                     {Platform.OS === 'web' ? (
-                                        <select value={monthStart} onChange={(e) => setMonthStart(parseInt(e.target.value))} style={styles.webPicker}>
-                                            {months.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-                                        </select>
+                                        <select value={monthStart} onChange={(e) => setMonthStart(parseInt(e.target.value))} style={styles.webPicker}>{months.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}</select>
                                     ) : (
                                         <Picker selectedValue={monthStart} style={styles.picker} dropdownIconColor={isDarkTheme ? "#FFF" : "#000"} onValueChange={(v) => setMonthStart(v)} mode="dropdown">
                                             {months.map((m, i) => <Picker.Item key={i} label={m} value={i + 1} color={isDarkTheme ? "#FFF" : "#000"} style={{ backgroundColor: isDarkTheme ? "#333" : "#fff" }} />)}
                                         </Picker>
                                     )}
                                 </View>
-                                <View style={[styles.pickerWrapper, {flex: 1.5}]}>
+                                <View style={styles.pickerWrapper}>
                                     {Platform.OS === 'web' ? (
-                                        <select value={yearStart} onChange={(e) => setYearStart(parseInt(e.target.value))} style={styles.webPicker}>
-                                            {years.map(y => <option key={y} value={y}>{y}</option>)}
-                                        </select>
+                                        <select value={yearStart} onChange={(e) => setYearStart(parseInt(e.target.value))} style={styles.webPicker}>{years.map(y => <option key={y} value={y}>{y}</option>)}</select>
                                     ) : (
                                         <Picker selectedValue={yearStart} style={styles.picker} dropdownIconColor={isDarkTheme ? "#FFF" : "#000"} onValueChange={(v) => setYearStart(v)} mode="dropdown">
                                             {years.map(y => <Picker.Item key={y} label={String(y)} value={y} color={isDarkTheme ? "#FFF" : "#000"} style={{ backgroundColor: isDarkTheme ? "#333" : "#fff" }} />)}
@@ -503,25 +493,21 @@ export default function ExpensesScreen({ route, navigation }) {
                                 </View>
                             </View>
                         </View>
-                        <View style={Platform.OS === 'web' ? {flexDirection: 'row', alignItems: 'center', gap: 8} : {width: '100%'}}>
+                        <View style={styles.sectionContainer}>
                             <Text style={styles.filterLabel}>Até:</Text>
-                            <View style={{flexDirection: 'row', gap: 4, width: Platform.OS === 'android' ? '100%' : 'auto'}}>
-                                <View style={[styles.pickerWrapper, {flex: 1}]}>
+                            <View style={{flexDirection: 'row', gap: 6, justifyContent: 'space-between'}}>
+                                <View style={styles.pickerWrapper}>
                                     {Platform.OS === 'web' ? (
-                                        <select value={monthEnd} onChange={(e) => setMonthEnd(parseInt(e.target.value))} style={styles.webPicker}>
-                                            {months.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-                                        </select>
+                                        <select value={monthEnd} onChange={(e) => setMonthEnd(parseInt(e.target.value))} style={styles.webPicker}>{months.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}</select>
                                     ) : (
                                         <Picker selectedValue={monthEnd} style={styles.picker} dropdownIconColor={isDarkTheme ? "#FFF" : "#000"} onValueChange={(v) => setMonthEnd(v)} mode="dropdown">
                                             {months.map((m, i) => <Picker.Item key={i} label={m} value={i + 1} color={isDarkTheme ? "#FFF" : "#000"} style={{ backgroundColor: isDarkTheme ? "#333" : "#fff" }} />)}
                                         </Picker>
                                     )}
                                 </View>
-                                <View style={[styles.pickerWrapper, {flex: 1.5}]}>
+                                <View style={styles.pickerWrapper}>
                                     {Platform.OS === 'web' ? (
-                                        <select value={yearEnd} onChange={(e) => setYearEnd(parseInt(e.target.value))} style={styles.webPicker}>
-                                            {years.map(y => <option key={y} value={y}>{y}</option>)}
-                                        </select>
+                                        <select value={yearEnd} onChange={(e) => setYearEnd(parseInt(e.target.value))} style={styles.webPicker}>{years.map(y => <option key={y} value={y}>{y}</option>)}</select>
                                     ) : (
                                         <Picker selectedValue={yearEnd} style={styles.picker} dropdownIconColor={isDarkTheme ? "#FFF" : "#000"} onValueChange={(v) => setYearEnd(v)} mode="dropdown">
                                             {years.map(y => <Picker.Item key={y} label={String(y)} value={y} color={isDarkTheme ? "#FFF" : "#000"} style={{ backgroundColor: isDarkTheme ? "#333" : "#fff" }} />)}
@@ -535,46 +521,31 @@ export default function ExpensesScreen({ route, navigation }) {
             </View>
 
             <ScrollView style={styles.listContainer} contentContainerStyle={{ paddingBottom: 140 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchData} tintColor={theme.text} />}>
-                {selectedTab === 'parcelados' ? (
-                    parcelamentos.map(item => (
-                        <Card key={item.id} style={styles.expenseCard}>
-                            <Card.Title title={item.nome} left={(p) => <Ionicons {...p} name={getIconForCategory(getCategoryForParcelamento(item.id))} size={24} color={theme.text} />}
-                                right={(p) => (
-                                    <Menu visible={visibleParcelamentoMenu === item.id} onDismiss={closeParcelamentoMenu} anchor={<IconButton {...p} icon="dots-vertical" onPress={() => openParcelamentoMenu(item.id)} />}>
-                                        <Menu.Item onPress={() => handleOpenEditParcelamentoModal(item)} title="Editar" />
-                                        <Menu.Item onPress={() => handleDeleteParcelamento(item.id)} title="Excluir" titleStyle={{ color: theme.danger }} />
-                                    </Menu>
-                                )}
-                            />
-                            <Card.Content><Paragraph style={{ color: theme.text }}>Total: R$ {parseFloat(item.valor_total).toFixed(2)} | {item.numero_parcelas}x</Paragraph></Card.Content>
-                        </Card>
-                    ))
-                ) : (
-                    filterExpenses().map(despesa => (
-                        <Card key={despesa.id} style={[styles.expenseCard, despesa.data_pagamento && { borderLeftWidth: 5, borderLeftColor: 'green' }]}>
-                            <Card.Title title={despesa.nome} titleStyle={{ paddingTop: 10, color: theme.text }}
-                                left={(p) => <Ionicons {...p} name={getIconForCategory(despesa.categoria)} size={24} color={theme.text} />}
-                                right={(p) => (
-                                    <Menu visible={visibleExpenseMenu === despesa.id} onDismiss={closeExpenseMenu} anchor={<IconButton {...p} icon="dots-vertical" onPress={() => openExpenseMenu(despesa.id)} />}>
-                                        <Menu.Item onPress={() => handleOpenEditModal(despesa)} title="Editar" />
-                                        <Menu.Item onPress={() => handleDeleteExpense(despesa.id)} title="Excluir" titleStyle={{ color: theme.danger }} />
-                                    </Menu>
-                                )} />
-                            <Card.Content>
-                                <Paragraph style={{ color: theme.subText }}>Valor: <Text style={{fontWeight: 'bold', color: theme.text}}>R$ {parseFloat(despesa.valor).toFixed(2)}</Text></Paragraph>
-                                <Paragraph style={{ color: theme.subText }}>Vencimento: <Text style={{fontWeight: 'bold', color: theme.text}}>{formatToBR(despesa.data_vencimento)}</Text></Paragraph>
-                                <Button mode={despesa.data_pagamento ? "outlined" : "contained"} onPress={() => handleTogglePaymentStatus(despesa)} style={{ marginTop: 10, backgroundColor: despesa.data_pagamento ? 'transparent' : theme.primary }} labelStyle={{color: despesa.data_pagamento ? 'green' : '#fff'}}>
-                                    {despesa.data_pagamento ? "Paga" : "Marcar como Paga"}
-                                </Button>
-                            </Card.Content>
-                        </Card>
-                    ))
-                )}
+                {filterExpenses().map(despesa => (
+                    <Card key={despesa.id} style={[styles.expenseCard, despesa.data_pagamento && { borderLeftWidth: 5, borderLeftColor: 'green' }]}>
+                        <Card.Title title={despesa.nome} titleStyle={{ paddingTop: 10, color: theme.text }}
+                            left={(p) => <Ionicons {...p} name={getIconForCategory(despesa.categoria)} size={24} color={theme.text} />}
+                            right={(p) => (
+                                <Menu visible={visibleExpenseMenu === despesa.id} onDismiss={closeExpenseMenu} anchor={<IconButton {...p} icon="dots-vertical" onPress={() => openExpenseMenu(despesa.id)} />}>
+                                    <Menu.Item onPress={() => handleOpenEditModal(despesa)} title="Editar" />
+                                    <Menu.Item onPress={() => handleDeleteExpense(despesa.id)} title="Excluir" titleStyle={{ color: theme.danger }} />
+                                </Menu>
+                            )} />
+                        <Card.Content>
+                            <Paragraph style={{ color: theme.subText }}>Valor: <Text style={{fontWeight: 'bold', color: theme.text}}>R$ {parseFloat(despesa.valor).toFixed(2)}</Text></Paragraph>
+                            <Paragraph style={{ color: theme.subText }}>Vencimento: <Text style={{fontWeight: 'bold', color: theme.text}}>{formatToBR(despesa.data_vencimento)}</Text></Paragraph>
+                            <Button mode={despesa.data_pagamento ? "outlined" : "contained"} onPress={() => handleTogglePaymentStatus(despesa)} style={{ marginTop: 10, backgroundColor: despesa.data_pagamento ? 'transparent' : theme.primary }} labelStyle={{color: despesa.data_pagamento ? 'green' : '#fff'}}>{despesa.data_pagamento ? "Paga" : "Marcar como Paga"}</Button>
+                            {despesa.data_pagamento && (<Paragraph style={{ fontWeight: 'bold', color: 'green', marginTop: 8 }}>Pago em: {formatToBR(despesa.data_pagamento)}</Paragraph>)}
+                        </Card.Content>
+                    </Card>
+                ))}
             </ScrollView>
 
-            <FAB style={{ position: 'absolute', margin: 16, right: 0, bottom: 80, backgroundColor: theme.primary }} 
-                icon="plus" 
-                color="#fff" onPress={() => setExpenseModalVisible(true)} />
+            <FAB style={{ position: 'absolute', margin: 16, right: 0, bottom: 80, backgroundColor: theme.primary }} icon="plus" color="#fff" onPress={() => setExpenseModalVisible(true)} />
+
+            {/* ==========================================
+                MODAIS DO SISTEMA (+710 LINHAS)
+            ========================================== */}
 
             {/* MODAL 1: NOVA DESPESA */}
             <Modal visible={expenseModalVisible} onRequestClose={() => setExpenseModalVisible(false)} transparent={true} animationType="slide">
@@ -599,6 +570,8 @@ export default function ExpensesScreen({ route, navigation }) {
                         <Text style={styles.modalTitle}>Editar Despesa</Text>
                         <TextInput style={styles.input} value={editingExpense?.nome} onChangeText={(t) => setEditingExpense({ ...editingExpense, nome: t })} />
                         <TextInput style={styles.input} keyboardType="numeric" value={editingExpense?.valor} onChangeText={(t) => setEditingExpense({ ...editingExpense, valor: t })} />
+                        {Platform.OS === 'web' ? editingExpense && <WebDatePicker label="Data" value={editingExpense.data_vencimento} onChange={(e, d) => setEditingExpense({...editingExpense, data_vencimento: d})} /> : <TouchableOpacity onPress={() => setShowEditDatePicker(true)} style={styles.datePickerButton}><Text style={{ color: theme.text }}>Data: {editingExpense?.data_vencimento.toLocaleDateString()}</Text></TouchableOpacity>}
+                        {showEditDatePicker && Platform.OS !== 'web' && <DateTimePicker value={editingExpense?.data_vencimento} mode="date" display="default" onChange={onChangeEditDate} />}
                         <Picker selectedValue={editingExpense?.categoria} style={styles.picker} onValueChange={(v) => setEditingExpense({ ...editingExpense, categoria: v })}>{categorias.map(cat => <Picker.Item key={cat.id} label={cat.nome} value={cat.nome} />)}</Picker>
                         <Button mode="contained" onPress={handleUpdateExpense} style={{ marginBottom: 10, backgroundColor: theme.primary }} labelStyle={{color: '#fff'}}>Salvar</Button>
                         <Button mode="outlined" onPress={() => setEditModalVisible(false)}>Cancelar</Button>
@@ -654,6 +627,19 @@ export default function ExpensesScreen({ route, navigation }) {
                         <TextInput style={styles.input} placeholder="Produto" value={newParcelamento.nome} onChangeText={(t) => setNewParcelamento({ ...newParcelamento, nome: t })} />
                         <TextInput style={styles.input} placeholder="Total" keyboardType="numeric" value={newParcelamento.valor_total} onChangeText={(t) => setNewParcelamento({ ...newParcelamento, valor_total: t })} />
                         <TextInput style={styles.input} placeholder="Parcelas" keyboardType="numeric" value={newParcelamento.numero_parcelas} onChangeText={(t) => setNewParcelamento({ ...newParcelamento, numero_parcelas: t })} />
+                        {Platform.OS === 'web' ? (
+                            <>
+                                <WebDatePicker label="Data Compra" value={newParcelamento.data_compra} onChange={(e, d) => setNewParcelamento({...newParcelamento, data_compra: d})} />
+                                <WebDatePicker label="1ª Parcela" value={newParcelamento.data_primeira_parcela} onChange={(e, d) => setNewParcelamento({...newParcelamento, data_primeira_parcela: d})} />
+                            </>
+                        ) : (
+                            <>
+                                <TouchableOpacity onPress={() => setShowCompraPicker(true)} style={styles.datePickerButton}><Text style={{ color: theme.text }}>Compra: {newParcelamento.data_compra.toLocaleDateString()}</Text></TouchableOpacity>
+                                {showCompraPicker && <DateTimePicker value={newParcelamento.data_compra} mode="date" display="default" onChange={onChangeCompraDate} />}
+                                <TouchableOpacity onPress={() => setShowPrimeiraParcelaPicker(true)} style={styles.datePickerButton}><Text style={{ color: theme.text }}>1ª Parcela: {newParcelamento.data_primeira_parcela.toLocaleDateString()}</Text></TouchableOpacity>
+                                {showPrimeiraParcelaPicker && <DateTimePicker value={newParcelamento.data_primeira_parcela} mode="date" display="default" onChange={onChangePrimeiraParcelaDate} />}
+                            </>
+                        )}
                         <Button mode="contained" onPress={handleAddParcelamento} style={{ marginBottom: 10, backgroundColor: theme.primary }} labelStyle={{color: '#fff'}}>Salvar</Button>
                         <Button mode="outlined" onPress={() => setParcelamentoModalVisible(false)}>Cancelar</Button>
                     </ScrollView>
@@ -702,5 +688,14 @@ const iconOptions = [
     'at-outline', 'attach-outline', 'backspace-outline', 'balloon-outline', 'barcode-outline',
     'baseball-outline', 'basketball-outline', 'battery-charging-outline', 'beaker-outline',
     'bed-outline', 'bluetooth-outline', 'body-outline', 'bonfire-outline', 'bowling-ball-outline',
-    'calculator-outline', 'calendar-outline', 'call-outline', 'card-outline', 'chatbox-outline'
+    'calculator-outline', 'calendar-outline', 'call-outline', 'card-outline', 'chatbox-outline',
+    'clipboard-outline', 'cloud-outline', 'code-outline', 'cog-outline', 'compass-outline',
+    'copy-outline', 'cube-outline', 'cut-outline', 'dice-outline', 'disc-outline', 'download-outline',
+    'earth-outline', 'easel-outline', 'ellipsis-horizontal-outline', 'eye-outline', 'female-outline',
+    'film-outline', 'finger-print-outline', 'fish-outline', 'flag-outline', 'flame-outline',
+    'flask-outline', 'flower-outline', 'folder-outline', 'football-outline', 'funnel-outline',
+    'game-controller-outline', 'glasses-outline', 'globe-outline', 'grid-outline', 'guitar-outline',
+    'hand-left-outline', 'hand-right-outline', 'hardware-chip-outline', 'headset-outline', 'help-buoy-outline',
+    'ice-cream-outline', 'id-card-outline', 'image-outline', 'images-outline', 'infinite-outline',
+    'journal-outline', 'key-outline', 'keypad-outline', 'language-outline', 'laptop-outline'
 ];
