@@ -2,7 +2,7 @@ import React, { useContext } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons'; // Trocado para ícones mais modernos
 import { AuthContext, AuthProvider } from './context/AuthContext';
 import { ThemeProvider, ThemeContext } from './context/ThemeContext';
 import { ActivityIndicator, View, TouchableOpacity, StyleSheet, Platform } from 'react-native';
@@ -20,63 +20,74 @@ import AccountScreen from './screens/AccountScreen';
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
+/**
+ * AppTabs: Configuração da barra de navegação inferior (Bottom Tab)
+ * Estilo Premium: Ícones dinâmicos, sombras projetadas e integração total com tema Dark.
+ */
 function AppTabs() {
   const { logout } = useContext(AuthContext);
-  const { theme } = useContext(ThemeContext);
+  const { theme, isDarkTheme } = useContext(ThemeContext);
 
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
+        // Estilização da Barra Inferior
+        tabBarStyle: {
+          backgroundColor: isDarkTheme ? '#121212' : '#ffffff', // Fundo escuro real para o Modo Black
+          borderTopWidth: 0,
+          height: Platform.OS === 'android' ? 75 : 85, // Mais altura para respiro visual
+          paddingBottom: Platform.OS === 'android' ? 12 : 30,
+          paddingTop: 10,
+          elevation: 25, // Sombra forte no Android
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.15,
+          shadowRadius: 10,
+        },
+        // Configuração de cores dos ícones e textos
+        tabBarActiveTintColor: theme.primary, // Cor roxa/laranja conforme o tema
+        tabBarInactiveTintColor: theme.subText,
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: 'bold',
+          marginBottom: 5,
+        },
+        headerShown: false, // Usamos os cabeçalhos personalizados de cada tela
+
+        // Ícones Dinâmicos (Preenchidos quando focados)
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
-          if (route.name === 'Home') iconName = focused ? 'home' : 'home-outline';
-          else if (route.name === 'Despesas') iconName = focused ? 'wallet' : 'wallet-outline';
-          else if (route.name === 'Dívidas') iconName = focused ? 'card' : 'card-outline';
-          else if (route.name === 'Metas') iconName = focused ? 'star' : 'star-outline';
-          else if (route.name === 'Relatórios') iconName = focused ? 'document-text' : 'document-text-outline';
-          else if (route.name === 'Conta') iconName = focused ? 'person-circle' : 'person-circle-outline';
-          return <Ionicons name={iconName} size={size} color={color} />;
+          const iconSize = focused ? 30 : 26; // Efeito de zoom no ícone ativo
+
+          if (route.name === 'Home') {
+            iconName = focused ? 'home-variant' : 'home-variant-outline';
+          } else if (route.name === 'Despesas') {
+            iconName = focused ? 'wallet' : 'wallet-outline';
+          } else if (route.name === 'Dívidas') {
+            iconName = focused ? 'credit-card-remove' : 'credit-card-remove-outline';
+          } else if (route.name === 'Metas') {
+            iconName = focused ? 'star' : 'star-outline';
+          } else if (route.name === 'Relatórios') {
+            iconName = focused ? 'chart-box' : 'chart-box-outline';
+          } else if (route.name === 'Conta') {
+            iconName = focused ? 'account-circle' : 'account-circle-outline';
+          }
+          
+          return <MaterialCommunityIcons name={iconName} size={iconSize} color={color} />;
         },
-        tabBarActiveTintColor: 'tomato',
-        tabBarInactiveTintColor: 'gray',
-        headerRight: () => (
-          <TouchableOpacity onPress={logout} style={{ marginRight: 15 }}>
-            <Ionicons name="log-out-outline" size={24} color="tomato" />
-          </TouchableOpacity>
-        ),
-        tabBarLabelStyle: {
-           // Definir fontSize menor para a web
-           ...Platform.select({
-             web: {
-               fontSize: 9, // Tentar com 9
-               paddingBottom: 2, // Adicionar um pequeno padding inferior se necessário
-             },
-             default: {
-               // Manter o padrão ou definir um para mobile se quiser
-               // fontSize: 10, // Se quiser voltar ao tamanho 10 para mobile
-             }
-           })
-        },
-        tabBarStyle: {
-            backgroundColor: theme.cardBackground
-        },
-        headerStyle: {
-            backgroundColor: theme.cardBackground
-        },
-        headerTintColor: theme.text
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Despesas" component={ExpensesScreen} />
       <Tab.Screen name="Dívidas" component={DividasScreen} />
       <Tab.Screen name="Metas" component={PlanningScreen} />
-      <Tab.Screen name="Conta" component={AccountScreen} />
       <Tab.Screen name="Relatórios" component={ReportsScreen} />
+      <Tab.Screen name="Conta" component={AccountScreen} />
     </Tab.Navigator>
   );
 }
 
-// --- Função AuthStack (sem alterações) ---
+// --- Função AuthStack (Estilizada para Login/Registro) ---
 function AuthStack() {
   const { theme } = useContext(ThemeContext);
 
@@ -88,7 +99,7 @@ function AuthStack() {
   );
 }
 
-// --- Função AppNav (sem alterações) ---
+// --- Navegador Raiz ---
 function AppNav() {
   const { userToken, isLoading } = useContext(AuthContext);
   const { theme } = useContext(ThemeContext);
@@ -108,7 +119,7 @@ function AppNav() {
   );
 }
 
-// --- StyleSheet ajustado (mantendo a alteração anterior) ---
+// Estilos de Container Principal
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -120,7 +131,7 @@ const styles = StyleSheet.create({
   },
 });
 
-// --- Componente App (sem alterações internas) ---
+// Componente Principal
 export default function App() {
   return (
     <PaperProvider>
