@@ -1,28 +1,63 @@
 // frontend/screens/AccountScreen.js
 import React, { useState, useEffect, useCallback, useContext } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
-import { Card, Button, Title, Paragraph, IconButton } from 'react-native-paper';
-import { Ionicons } from '@expo/vector-icons';
+import { 
+    View, 
+    Text, 
+    StyleSheet, 
+    ScrollView, 
+    ActivityIndicator, 
+    RefreshControl, 
+    TouchableOpacity, 
+    Modal, 
+    TextInput, 
+    Alert,
+    Platform,
+    Dimensions
+} from 'react-native';
+import { 
+    Card, 
+    Button, 
+    Title, 
+    Paragraph, 
+    IconButton, 
+    Surface, 
+    Avatar, 
+    Divider, 
+    Switch 
+} from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { AuthContext } from '../context/AuthContext';
 import { ThemeContext } from '../context/ThemeContext';
 
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+
+/**
+ * TELA: AccountScreen
+ * Objetivo: Gestão de perfil, segurança de acesso e preferências visuais.
+ * Inclui o alternador de Modo Escuro / Claro.
+ */
 export default function AccountScreen({ navigation }) {
     const { api, deleteAccount } = useContext(AuthContext);
-    const { theme, isDarkTheme } = useContext(ThemeContext);
+    const { theme, isDarkTheme, toggleTheme } = useContext(ThemeContext);
+    
+    // Estados de Controle de Dados do Perfil
     const [userData, setUserData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     
+    // Estados para Controle dos Modais
     const [rendaModalVisible, setRendaModalVisible] = useState(false);
     const [inputRenda, setInputRenda] = useState('');
-
     const [passwordModalVisible, setPasswordModalVisible] = useState(false);
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
+    /**
+     * fetchData: Sincroniza os dados do usuário com o servidor AWS RDS.
+     * Necessário para refletir mudanças na renda mensal.
+     */
     const fetchData = async () => {
         try {
             setRefreshing(true);
@@ -30,8 +65,8 @@ export default function AccountScreen({ navigation }) {
             setUserData(response.data);
             setInputRenda(String(response.data.renda_mensal));
         } catch (error) {
-            console.error('Erro ao buscar dados do usuário:', error);
-            Alert.alert('Erro', 'Não foi possível carregar os dados do usuário.');
+            console.error('Erro na carga do perfil:', error);
+            Alert.alert('Erro de Conexão', 'Não foi possível carregar os dados do seu perfil no momento.');
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -39,64 +74,74 @@ export default function AccountScreen({ navigation }) {
     };
     
     useFocusEffect(useCallback(() => { fetchData(); }, []));
+
     const onRefresh = () => fetchData();
 
+    /**
+     * handleUpdateRenda: Atualiza o valor base da renda mensal do usuário.
+     */
     const handleUpdateRenda = async () => {
-        const novaRenda = parseFloat(inputRenda);
-        if (isNaN(novaRenda) || novaRenda < 0) {
-            Alert.alert('Valor Inválido', 'Por favor, insira um número válido.');
+        const valorLimpo = inputRenda.replace(',', '.');
+        const novaRendaNum = parseFloat(valorLimpo);
+
+        if (isNaN(novaRendaNum) || novaRendaNum < 0) {
+            Alert.alert('Valor Inválido', 'Por favor, insira um valor numérico positivo para sua renda.');
             return;
         }
         try {
-            await api.put('/usuario', { renda_mensal: novaRenda });
-            Alert.alert('Sucesso', 'Renda mensal atualizada!');
+            await api.put('/usuario', { renda_mensal: novaRendaNum });
+            Alert.alert('Perfil Atualizado', 'Sua renda mensal foi gravada com sucesso!');
             setRendaModalVisible(false);
             fetchData();
         } catch (error) {
-            console.error('Erro ao atualizar a renda:', error);
-            Alert.alert('Erro', 'Não foi possível atualizar a renda.');
+            Alert.alert('Erro no Servidor', 'Houve um problema ao salvar sua nova renda. Tente novamente.');
         }
     };
 
+    /**
+     * handleUpdatePassword: Altera a credencial de acesso com validações de segurança.
+     */
     const handleUpdatePassword = async () => {
         if (!newPassword || !confirmPassword) {
-            Alert.alert('Erro', 'Por favor, preencha todos os campos.');
+            Alert.alert('Campos Vazios', 'Para sua segurança, preencha todos os campos de senha.');
             return;
         }
         if (newPassword !== confirmPassword) {
-            Alert.alert('Erro', 'As senhas não coincidem.');
+            Alert.alert('Erro de Digitação', 'A confirmação de senha não coincide com a nova senha.');
             return;
         }
         if (newPassword.length < 6) {
-            Alert.alert('Erro', 'A senha deve ter no mínimo 6 caracteres.');
+            Alert.alert('Senha Fraca', 'Sua nova senha deve possuir pelo menos 6 caracteres.');
             return;
         }
 
         try {
             await api.put('/usuario/senha', { newPassword });
-            Alert.alert('Sucesso', 'Senha alterada com sucesso!');
+            Alert.alert('Segurança Atualizada', 'Sua senha de acesso foi alterada. Use-a no próximo login.');
             setPasswordModalVisible(false);
             setNewPassword('');
             setConfirmPassword('');
         } catch (error) {
-            console.error('Erro ao atualizar a senha:', error);
-            Alert.alert('Erro', 'Não foi possível atualizar a senha. Tente novamente.');
+            Alert.alert('Erro de Processamento', 'Não foi possível atualizar sua senha. Verifique sua conexão.');
         }
     };
 
+    /**
+     * handleDeleteAccount: Lógica de encerramento definitivo de conta.
+     */
     const handleDeleteAccount = () => {
         Alert.alert(
-            "Atenção",
-            "Tem certeza que deseja excluir sua conta? Esta ação é irreversível e excluirá todos os seus dados.",
+            "AVISO DE EXCLUSÃO",
+            "Você está prestes a apagar todos os seus registros financeiros (gastos, metas e dívidas). Esta ação é permanente e irreversível.",
             [
-                { text: "Cancelar", style: "cancel" },
+                { text: "Cancelar e Voltar", style: "cancel" },
                 {
-                    text: "Excluir Permanentemente",
+                    text: "APAGAR TUDO AGORA",
                     onPress: async () => {
                         try {
                             await deleteAccount();
                         } catch (error) {
-                            Alert.alert('Erro', 'Não foi possível excluir a conta. Tente novamente.');
+                            Alert.alert('Erro Crítico', 'Falha ao processar o encerramento da conta.');
                         }
                     },
                     style: "destructive"
@@ -105,145 +150,211 @@ export default function AccountScreen({ navigation }) {
         );
     };
 
+    // Estilos internos que garantem a legibilidade e o design premium
     const styles = StyleSheet.create({
         container: { flex: 1, backgroundColor: theme.background },
-        scrollViewContent: { padding: 20, paddingBottom: 80 },
-        loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-        title: { fontSize: 28, fontWeight: 'bold', textAlign: 'center', marginBottom: 20, color: theme.text },
-        card: { marginBottom: 15, elevation: 3, backgroundColor: theme.cardBackground },
-        label: { fontSize: 16, color: theme.subText },
-        value: { fontSize: 24, fontWeight: 'bold', color: theme.text },
-        row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-        deleteButton: { marginTop: 30, borderColor: theme.danger, backgroundColor: isDarkTheme ? '#551111' : '#fff' },
-        deleteButtonText: { color: theme.danger },
-        modalContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)'},
-        modalContent: { backgroundColor: theme.cardBackground, padding: 20, borderRadius: 10, width: '90%', elevation: 5 },
-        modalTitle: { fontSize: 22, fontWeight: 'bold', marginBottom: 20, textAlign: 'center', color: theme.text },
-        input: { borderWidth: 1, borderColor: theme.subText, padding: 10, marginBottom: 20, borderRadius: 6, backgroundColor: isDarkTheme ? '#333' : '#fff', color: theme.text },
-        buttonContainer: { flexDirection: 'row', justifyContent: 'space-around', width: '100%', marginTop: 10},
-        modalButton: { flex: 1, marginHorizontal: 5 },
-        passwordInputContainer: {
-            flexDirection: 'row',
-            alignItems: 'center',
+        header: { padding: 40, borderBottomLeftRadius: 45, borderBottomRightRadius: 45, alignItems: 'center' },
+        avatar: { backgroundColor: theme.primary, elevation: 6 },
+        username: { fontSize: 30, fontWeight: 'bold', marginTop: 15 },
+        scroll: { padding: 22, paddingBottom: 120 },
+        sectionLabel: { fontSize: 13, fontWeight: 'bold', color: theme.subText, marginBottom: 12, marginLeft: 8, letterSpacing: 1.5 },
+        mainCard: { 
+            marginBottom: 20, 
+            borderRadius: 26, 
+            elevation: 5, 
+            backgroundColor: theme.cardBackground,
+            borderLeftWidth: 12,
+            borderLeftColor: theme.primary,
+            overflow: 'hidden'
+        },
+        cardHeader: { fontSize: 12, fontWeight: '600', color: theme.subText },
+        cardValue: { fontSize: 24, fontWeight: '900', color: theme.text },
+        flexRowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+        themeSurface: { 
+            flexDirection: 'row', 
+            justifyContent: 'space-between', 
+            alignItems: 'center', 
+            padding: 18, 
+            borderRadius: 25, 
+            backgroundColor: isDarkTheme ? '#2c2c2c' : '#f8f8f8',
+            marginBottom: 28,
             borderWidth: 1,
+            borderColor: theme.subText + '25'
+        },
+        dangerBtn: { marginTop: 15, borderRadius: 18, borderColor: theme.danger, height: 50, justifyContent: 'center' },
+        overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', padding: 25 },
+        modalBox: { padding: 35, borderRadius: 35, backgroundColor: theme.cardBackground },
+        input: { 
+            borderWidth: 1, 
+            borderRadius: 16, 
+            padding: 18, 
+            marginBottom: 16, 
+            color: theme.text, 
             borderColor: theme.subText,
-            borderRadius: 6,
-            backgroundColor: isDarkTheme ? '#333' : '#fff',
-            marginBottom: 10,
-            // Removendo o paddingRight para não afetar o TextInput
-            // paddingRight: 10, 
+            backgroundColor: isDarkTheme ? '#202020' : '#fff',
+            fontSize: 16
         },
-        passwordVisibilityIcon: {
-            position: 'absolute',
-            right: 10,
-            padding: 5,
-            color: theme.subText,
-        },
+        passWrapper: { position: 'relative', justifyContent: 'center' },
+        passIcon: { position: 'absolute', right: 8, zIndex: 5 },
+        rowGap: { flexDirection: 'row', gap: 15, marginTop: 20 }
     });
 
     if (loading) {
-        return <View style={styles.loadingContainer}><ActivityIndicator size="large" color={theme.text} /></View>;
+        return (
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+                <ActivityIndicator size="large" color={theme.primary} />
+                <Text style={{ color: theme.subText, marginTop: 15 }}>Sincronizando perfil...</Text>
+            </View>
+        );
     }
 
     return (
         <View style={styles.container}>
-            <ScrollView
-                contentContainerStyle={styles.scrollViewContent}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.text} />}
+            {/* TOPO DA PÁGINA COM AVATAR */}
+            <Surface style={[styles.header, { backgroundColor: isDarkTheme ? '#1a1a1a' : '#ffffff' }]} elevation={3}>
+                <Avatar.Text 
+                    size={85} 
+                    label={userData?.username?.substring(0, 2).toUpperCase()} 
+                    style={styles.avatar} 
+                    color="white" 
+                />
+                <Title style={[styles.username, { color: theme.text }]}>{userData?.username}</Title>
+                <Paragraph style={{ color: theme.subText }}>Membro desde {new Date().getFullYear()}</Paragraph>
+            </Surface>
+
+            <ScrollView 
+                contentContainerStyle={styles.scroll}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[theme.primary]} tintColor={theme.text} />}
             >
-                <Title style={styles.title}>Minha Conta</Title>
+                {/* CONFIGURAÇÃO DE TEMA [NOVA FUNCIONALIDADE] */}
+                <Text style={styles.sectionLabel}>APARÊNCIA DO SISTEMA</Text>
+                <Surface style={styles.themeSurface} elevation={2}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Avatar.Icon 
+                            size={44} 
+                            icon={isDarkTheme ? "moon-waning-crescent" : "white-balance-sunny"} 
+                            color={isDarkTheme ? "#BB86FC" : "#FFA000"} 
+                            style={{ backgroundColor: isDarkTheme ? '#BB86FC20' : '#FFA00020' }} 
+                        />
+                        <View style={{ marginLeft: 15 }}>
+                            <Text style={{ color: theme.text, fontWeight: 'bold', fontSize: 17 }}>Modo {isDarkTheme ? 'Escuro' : 'Claro'}</Text>
+                            <Text style={{ color: theme.subText, fontSize: 12 }}>Ativar fundo {isDarkTheme ? 'preto' : 'claro'}</Text>
+                        </View>
+                    </View>
+                    <Switch value={isDarkTheme} onValueChange={toggleTheme} color={theme.primary} />
+                </Surface>
 
-                <Card style={styles.card}>
+                {/* INFORMAÇÕES FINANCEIRAS */}
+                <Text style={styles.sectionLabel}>DADOS FINANCEIROS</Text>
+                <Card style={styles.mainCard}>
                     <Card.Content>
-                        <Paragraph style={styles.label}>Nome de Usuário</Paragraph>
-                        <Title style={styles.value}>{userData?.username}</Title>
-                    </Card.Content>
-                </Card>
-
-                <Card style={styles.card}>
-                    <Card.Content>
-                        <View style={styles.row}>
+                        <View style={styles.flexRowBetween}>
                             <View>
-                                <Paragraph style={styles.label}>Renda Mensal</Paragraph>
-                                <Title style={styles.value}>R$ {Number(userData?.renda_mensal || 0).toFixed(2)}</Title>
+                                <Text style={styles.cardHeader}>RENDA MENSAL ATUAL</Text>
+                                <Text style={styles.cardValue}>R$ {Number(userData?.renda_mensal || 0).toFixed(2)}</Text>
                             </View>
-                            <IconButton icon="pencil" size={24} onPress={() => setRendaModalVisible(true)} iconColor={theme.text} />
+                            <IconButton 
+                                icon="cash-edit" 
+                                size={30} 
+                                iconColor={theme.primary} 
+                                onPress={() => setRendaModalVisible(true)} 
+                                style={{ backgroundColor: theme.primary + '18' }}
+                            />
                         </View>
                     </Card.Content>
                 </Card>
-                
-                <Card style={styles.card}>
+
+                {/* SEGURANÇA E CONTA */}
+                <Text style={styles.sectionLabel}>SEGURANÇA</Text>
+                <Card style={[styles.mainCard, { borderLeftColor: '#4CAF50' }]}>
                     <Card.Content>
-                        <View style={styles.row}>
+                        <View style={styles.flexRowBetween}>
                             <View>
-                                <Paragraph style={styles.label}>Alterar Senha</Paragraph>
-                                <Title style={styles.value}>********</Title>
+                                <Text style={styles.cardHeader}>CREDENCIAIS DE ACESSO</Text>
+                                <Text style={styles.cardValue}>••••••••••••</Text>
                             </View>
-                            <IconButton icon="pencil" size={24} onPress={() => setPasswordModalVisible(true)} iconColor={theme.text} />
+                            <IconButton 
+                                icon="lock-check" 
+                                size={30} 
+                                iconColor="#4CAF50" 
+                                onPress={() => setPasswordModalVisible(true)} 
+                                style={{ backgroundColor: '#4CAF5018' }}
+                            />
                         </View>
                     </Card.Content>
                 </Card>
 
-                <Button mode="outlined" onPress={handleDeleteAccount} style={styles.deleteButton} labelStyle={styles.deleteButtonText}>
-                    Excluir Conta
+                <Divider style={{ marginVertical: 15, height: 1 }} />
+
+                {/* BOTÃO DE EXCLUSÃO */}
+                <Button 
+                    mode="outlined" 
+                    onPress={handleDeleteAccount} 
+                    style={styles.dangerBtn} 
+                    textColor={theme.danger}
+                    icon="account-remove-outline"
+                >
+                    Excluir minha conta permanentemente
                 </Button>
 
-                <Modal visible={rendaModalVisible} onRequestClose={() => setRendaModalVisible(false)} transparent={true} animationType="fade">
-                    <View style={styles.modalContainer}>
-                        <View style={styles.modalContent}>
-                            <Title style={styles.modalTitle}>Atualizar Renda Mensal</Title>
-                            <TextInput style={styles.input} placeholder="Digite o novo valor da renda" keyboardType="numeric" value={inputRenda || ''} onChangeText={setInputRenda} placeholderTextColor={theme.subText} />
-                            <View style={styles.buttonContainer}>
-                                <Button mode="outlined" onPress={() => setRendaModalVisible(false)} style={styles.modalButton}>Cancelar</Button>
-                                <Button mode="contained" onPress={handleUpdateRenda} style={[styles.modalButton, { backgroundColor: theme.primary }]} labelStyle={{color: '#fff'}}>Salvar</Button>
+                {/* MODAL: EDIÇÃO DE RENDA */}
+                <Modal visible={rendaModalVisible} transparent animationType="fade" onRequestClose={() => setRendaModalVisible(false)}>
+                    <View style={styles.overlay}>
+                        <Surface style={styles.modalBox} elevation={5}>
+                            <Title style={{ color: theme.text, textAlign: 'center', marginBottom: 25 }}>Atualizar Renda</Title>
+                            <TextInput 
+                                style={styles.input} 
+                                keyboardType="numeric" 
+                                value={inputRenda} 
+                                onChangeText={setInputRenda}
+                                placeholder="0.00"
+                                placeholderTextColor={theme.subText}
+                            />
+                            <View style={styles.rowGap}>
+                                <Button mode="outlined" onPress={() => setRendaModalVisible(false)} style={{ flex: 1 }}>Voltar</Button>
+                                <Button mode="contained" onPress={handleUpdateRenda} style={{ flex: 1 }}>Salvar</Button>
                             </View>
-                        </View>
+                        </Surface>
                     </View>
                 </Modal>
                 
-                <Modal visible={passwordModalVisible} onRequestClose={() => setPasswordModalVisible(false)} transparent={true} animationType="fade">
-                    <View style={styles.modalContainer}>
-                        <View style={styles.modalContent}>
-                            <Title style={styles.modalTitle}>Alterar Senha</Title>
-                            <View style={styles.passwordInputContainer}>
+                {/* MODAL: TROCA DE SENHA */}
+                <Modal visible={passwordModalVisible} transparent animationType="slide" onRequestClose={() => setPasswordModalVisible(false)}>
+                    <View style={styles.overlay}>
+                        <Surface style={styles.modalBox} elevation={5}>
+                            <Title style={{ color: theme.text, textAlign: 'center', marginBottom: 25 }}>Alterar Senha</Title>
+                            
+                            <View style={styles.passWrapper}>
                                 <TextInput
-                                    style={[styles.input, { flex: 1, marginBottom: 0, color: theme.text, backgroundColor: isDarkTheme ? '#333' : '#fff', paddingRight: 40 }]}
-                                    placeholder="Nova Senha"
+                                    style={styles.input}
+                                    placeholder="Nova senha de acesso"
                                     value={newPassword}
                                     onChangeText={setNewPassword}
                                     secureTextEntry={!isPasswordVisible}
                                     placeholderTextColor={theme.subText}
                                 />
-                                <TouchableOpacity onPress={() => setIsPasswordVisible(!isPasswordVisible)} style={{ position: 'absolute', right: 10 }}>
-                                    <Ionicons
-                                        name={isPasswordVisible ? "eye-off-outline" : "eye-outline"}
-                                        size={24}
-                                        color={theme.subText}
-                                    />
-                                </TouchableOpacity>
-                            </View>
-                            <View style={styles.passwordInputContainer}>
-                                <TextInput
-                                    style={[styles.input, { flex: 1, marginBottom: 0, color: theme.text, backgroundColor: isDarkTheme ? '#333' : '#fff', paddingRight: 40 }]}
-                                    placeholder="Confirme a Nova Senha"
-                                    value={confirmPassword}
-                                    onChangeText={setConfirmPassword}
-                                    secureTextEntry={!isPasswordVisible}
-                                    placeholderTextColor={theme.subText}
+                                <IconButton 
+                                    icon={isPasswordVisible ? "eye-off" : "eye"} 
+                                    onPress={() => setIsPasswordVisible(!isPasswordVisible)}
+                                    style={styles.passIcon}
+                                    iconColor={theme.subText}
                                 />
-                                <TouchableOpacity onPress={() => setIsPasswordVisible(!isPasswordVisible)} style={{ position: 'absolute', right: 10 }}>
-                                    <Ionicons
-                                        name={isPasswordVisible ? "eye-off-outline" : "eye-outline"}
-                                        size={24}
-                                        color={theme.subText}
-                                    />
-                                </TouchableOpacity>
                             </View>
-                            <View style={styles.buttonContainer}>
-                                <Button mode="outlined" onPress={() => setPasswordModalVisible(false)} style={styles.modalButton}>Cancelar</Button>
-                                <Button mode="contained" onPress={handleUpdatePassword} style={[styles.modalButton, { backgroundColor: theme.primary }]} labelStyle={{color: '#fff'}}>Salvar</Button>
+
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Confirme a nova senha"
+                                value={confirmPassword}
+                                onChangeText={setConfirmPassword}
+                                secureTextEntry={!isPasswordVisible}
+                                placeholderTextColor={theme.subText}
+                            />
+
+                            <View style={styles.rowGap}>
+                                <Button mode="text" onPress={() => setPasswordModalVisible(false)} textColor={theme.danger} style={{ flex: 1 }}>Cancelar</Button>
+                                <Button mode="contained" onPress={handleUpdatePassword} style={{ flex: 1 }}>Atualizar</Button>
                             </View>
-                        </View>
+                        </Surface>
                     </View>
                 </Modal>
             </ScrollView>
