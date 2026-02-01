@@ -31,25 +31,33 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { AuthContext } from '../context/AuthContext';
 import { ThemeContext } from '../context/ThemeContext';
 
-const { width: screenWidth } = Dimensions.get('window');
+/**
+ * CONFIGURAÇÕES DE DISPOSITIVO
+ * Utilizado para cálculos de layout responsivo e redimensionamento de cards.
+ */
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 /**
  * TELA: HomeScreen
- * Descrição: Dashboard principal com resumo financeiro, metas e rendas extras.
- * Estilo unificado com a tela de Despesas para consistência visual.
+ * Descrição: Central de comando financeiro.
+ * Atualização: Reinclusão do botão de Sair e integração com Economia Inteligente.
  */
 export default function HomeScreen({ navigation }) {
-    const { api, userToken } = useContext(AuthContext); 
+    const { api, userToken, logout } = useContext(AuthContext); // logout reintegrado para o cabeçalho
     const { theme, isDarkTheme } = useContext(ThemeContext); 
     
-    // Estados de Controle de Dados
+    // ==========================================
+    // 1. ESTADOS DE CONTROLE DE DADOS
+    // ==========================================
     const [rendaMensal, setRendaMensal] = useState(0);
     const [despesasPagasMes, setDespesasPagasMes] = useState(0);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [username, setUsername] = useState('');
 
-    // Estados de Gastos e Alertas
+    // ==========================================
+    // 2. ESTADOS DE GASTOS E ALERTAS
+    // ==========================================
     const [upcomingExpenses, setUpcomingExpenses] = useState([]);
     const [overdueExpenses, setOverdueExpenses] = useState([]);
     const [debtSavingsGoals, setDebtSavingsGoals] = useState({ daily: 0, monthly: 0 });
@@ -57,21 +65,23 @@ export default function HomeScreen({ navigation }) {
     const [homeDividas, setHomeDividas] = useState([]);
     const [homeMetas, setHomeMetas] = useState([]);
 
-    // Estados de Renda Extra
+    // ==========================================
+    // 3. ESTADOS DE RENDA EXTRA
+    // ==========================================
     const [rendasExtras, setRendasExtras] = useState([]);
     const [totalRendasExtras, setTotalRendasExtras] = useState(0);
 
-    // Estados de Modais e Formulários
+    // ==========================================
+    // 4. ESTADOS DE MODAIS E FORMULÁRIOS
+    // ==========================================
     const [rendaModalVisible, setRendaModalVisible] = useState(false);
     const [inputRenda, setInputRenda] = useState('');
     const [addRendaExtraModalVisible, setAddRendaExtraModalVisible] = useState(false);
-    const [editRendaExtraModalVisible, setEditRendaExtraModalVisible] = useState(false);
     const [newRendaExtra, setNewRendaExtra] = useState({ nome: '', valor: '', data_recebimento: new Date() });
-    const [editingRendaExtra, setEditingRendaExtra] = useState(null);
     const [showDatePicker, setShowDatePicker] = useState(false);
 
     /**
-     * fetchData: Sincroniza as informações do Dashboard com o banco de dados RDS.
+     * fetchData: Sincroniza o Dashboard com o RDS AWS e calcula o comprometimento orçamentário.
      */
     const fetchData = async () => {
         try {
@@ -81,7 +91,7 @@ export default function HomeScreen({ navigation }) {
             const mesAtual = hoje.getMonth() + 1;
             const anoAtual = hoje.getFullYear();
 
-            // Busca múltipla paralela para performance
+            // Chamada paralela otimizada para reduzir latência na AWS
             const [rendaRes, despesasRes, dividasRes, metasRes, extrasRes] = await Promise.all([
                 api.get('/usuario'),
                 api.get('/despesas'),
@@ -90,18 +100,15 @@ export default function HomeScreen({ navigation }) {
                 api.get(`/rendas-extras?mes=${mesAtual}&ano=${anoAtual}`),
             ]);
 
-            // 1. Processamento de Perfil e Renda Fixa
             const rendaBase = parseFloat(rendaRes.data.renda_mensal) || 0;
             setRendaMensal(rendaBase);
             setInputRenda(rendaBase.toString());
-            setUsername(rendaRes.data.username || 'Usuário');
+            setUsername(rendaRes.data.nome || 'Usuário');
 
-            // 2. Processamento de Rendas Extras
             const listaExtras = extrasRes.data || [];
             setRendasExtras(listaExtras);
             setTotalRendasExtras(listaExtras.reduce((sum, item) => sum + parseFloat(item.valor), 0));
 
-            // 3. Processamento de Despesas e Alertas
             const todasDespesas = despesasRes.data || [];
             const totalPagas = todasDespesas
                 .filter(d => {
@@ -112,10 +119,8 @@ export default function HomeScreen({ navigation }) {
                 .reduce((sum, d) => sum + parseFloat(d.valor), 0);
             setDespesasPagasMes(totalPagas);
             
-            // Filtro de Contas Atrasadas
             setOverdueExpenses(todasDespesas.filter(d => !d.data_pagamento && new Date(d.data_vencimento) < hoje));
 
-            // Filtro de Próximas Contas (Janela de 30 dias)
             const limite30 = new Date(hoje);
             limite30.setDate(hoje.getDate() + 30);
             setUpcomingExpenses(todasDespesas
@@ -123,8 +128,8 @@ export default function HomeScreen({ navigation }) {
                 .sort((a, b) => new Date(a.data_vencimento) - new Date(b.data_vencimento))
             );
 
-            // 4. Cálculos de Metas de Quitação de Dívidas
-            const dividasFiltradas = dividasRes.data.filter(d => d.incluir_home);
+            // Cálculo do Plano de Quitação
+            const dividasFiltradas = (dividasRes.data || []).filter(d => d.incluir_home);
             setHomeDividas(dividasFiltradas);
             let somaDiariaDivida = 0;
             dividasFiltradas.forEach(div => {
@@ -133,25 +138,16 @@ export default function HomeScreen({ navigation }) {
                 const diasRestantes = Math.max(0, Math.ceil((limite.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24)));
                 if (diasRestantes > 0 && totalLiq > 0) somaDiariaDivida += totalLiq / diasRestantes;
             });
-            setDebtSavingsGoals({ daily: somaDiariaDivida, monthly: somaDiariaDivida * 30.44 });
-
-            // 5. Cálculos de Metas de Economia
-            const metasFiltradas = metasRes.data.filter(m => m.incluir_home);
-            setHomeMetas(metasFiltradas);
-            let somaDiariaMeta = 0;
-            metasFiltradas.forEach(meta => {
-                const alvo = parseFloat(meta.valor_alvo) - (parseFloat(meta.valor_economizado) || 0);
-                const limite = new Date(meta.data_limite);
-                const diasRestantes = Math.max(0, Math.ceil((limite.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24)));
-                if (diasRestantes > 0 && alvo > 0) somaDiariaMeta += alvo / diasRestantes;
-            });
-            setGoalSavings({ daily: somaDiariaMeta, monthly: somaDiariaMeta * 30.44 });
+            setDebtSavingsGoals({ daily: somaDiariaDivida, monthly: somaDiariaDivida * 30 });
 
         } catch (error) {
-            console.error('Erro na sincronização da Home:', error);
+            console.error('Sincronia Home Falhou:', error);
+            if (error.response?.status === 401) {
+                console.log("Token expirado. Aguardando logout manual ou automático.");
+            }
         } finally {
-            setLoading(false);
-            setRefreshing(false);
+            setLoading(false); 
+            setRefreshing(false); 
         }
     };
     
@@ -159,18 +155,31 @@ export default function HomeScreen({ navigation }) {
 
     const onRefresh = () => fetchData();
     
+    /**
+     * handleUpdateRenda: Atualiza o valor de renda base no perfil do usuário.
+     */
     const handleUpdateRenda = async () => {
         const novaRenda = parseFloat(inputRenda);
-        if (isNaN(novaRenda) || novaRenda < 0) { Alert.alert('Erro', 'Insira um valor válido.'); return; }
+        if (isNaN(novaRenda) || novaRenda < 0) { Alert.alert('Valor Inválido', 'Insira um valor numérico.'); return; }
         try {
             await api.put('/usuario', { renda_mensal: novaRenda });
             setRendaModalVisible(false);
             fetchData();
-        } catch (error) { Alert.alert('Erro', 'Falha ao atualizar renda.'); }
+        } catch (error) { Alert.alert('Erro AWS', 'Falha ao atualizar renda.'); }
+    };
+
+    /**
+     * handleLogout: Finaliza a sessão do usuário.
+     */
+    const handleLogout = () => {
+        Alert.alert("Sair do App", "Deseja realmente encerrar sua sessão?", [
+            { text: "Cancelar", style: "cancel" },
+            { text: "Sim, Sair", onPress: () => logout(), style: "destructive" }
+        ]);
     };
 
     const handleAddRendaExtra = async () => {
-        if (!newRendaExtra.nome || !newRendaExtra.valor) { Alert.alert('Erro', 'Preencha todos os campos.'); return; }
+        if (!newRendaExtra.nome || !newRendaExtra.valor) { Alert.alert('Campos Vazios', 'Preencha descrição e valor.'); return; }
         try {
             await api.post('/rendas-extras', { 
                 ...newRendaExtra, 
@@ -180,240 +189,240 @@ export default function HomeScreen({ navigation }) {
             setAddRendaExtraModalVisible(false);
             setNewRendaExtra({ nome: '', valor: '', data_recebimento: new Date() });
             fetchData();
-        } catch (error) { Alert.alert('Erro', 'Falha ao adicionar renda extra.'); }
-    };
-
-    const handleOpenEditRendaExtra = (renda) => {
-        const [y, m, d] = renda.data_recebimento.split('T')[0].split('-');
-        setEditingRendaExtra({ 
-            ...renda, 
-            valor: String(renda.valor), 
-            data_recebimento: new Date(y, parseInt(m) - 1, d) 
-        });
-        setEditRendaExtraModalVisible(true);
-    };
-
-    const handleUpdateRendaExtra = async () => {
-        if (!editingRendaExtra) return;
-        try {
-            await api.put(`/rendas-extras/${editingRendaExtra.id}`, { 
-                ...editingRendaExtra, 
-                valor: parseFloat(editingRendaExtra.valor), 
-                data_recebimento: editingRendaExtra.data_recebimento.toISOString().split('T')[0] 
-            });
-            setEditRendaExtraModalVisible(false);
-            fetchData();
-        } catch (error) { Alert.alert('Erro', 'Falha ao atualizar.'); }
+        } catch (error) { Alert.alert('Erro', 'Falha ao adicionar.'); }
     };
 
     const handleDeleteRendaExtra = (id) => {
-        Alert.alert("Excluir Renda", "Deseja remover este registro?", [
-            { text: "Cancelar" },
-            { text: "Excluir", style: 'destructive', onPress: async () => {
+        Alert.alert("Remover Extra", "Confirmar exclusão?", [
+            { text: "Não" },
+            { text: "Sim", style: 'destructive', onPress: async () => {
                 try { await api.delete(`/rendas-extras/${id}`); fetchData(); } 
                 catch (error) { Alert.alert("Erro", "Falha ao excluir."); }
             }}
         ]);
     };
-    
-    const onChangeDate = (event, selectedDate, type) => {
+
+    const onChangeDate = (event, selectedDate) => {
         setShowDatePicker(false);
-        if (selectedDate) {
-            if (type === 'new') setNewRendaExtra({ ...newRendaExtra, data_recebimento: selectedDate });
-            else setEditingRendaExtra({ ...editingRendaExtra, data_recebimento: selectedDate });
-        }
+        if (selectedDate) setNewRendaExtra({ ...newRendaExtra, data_recebimento: selectedDate });
     };
 
-    // Estilos internos que respeitam o Tema (Dark/Light)
+    // ==========================================
+    // 5. ESTILOS TÉCNICOS E DINÂMICOS
+    // ==========================================
     const dynamicStyles = StyleSheet.create({
         container: { flex: 1, backgroundColor: theme.background },
-        header: { padding: 25, borderBottomLeftRadius: 35, borderBottomRightRadius: 35 },
-        greeting: { fontSize: 26, fontWeight: 'bold' },
-        scrollContent: { padding: 20, paddingBottom: 110 },
-        card: { 
-            marginBottom: 18, 
-            borderRadius: 22, 
-            borderLeftWidth: 12, 
-            borderLeftColor: 'transparent', 
-            elevation: 6,
-            backgroundColor: theme.cardBackground
-        },
-        alertCard: { backgroundColor: '#FF5252', borderLeftWidth: 0 },
-        balanceTitle: { fontSize: 36, fontWeight: '900', marginVertical: 8 },
-        progress: { height: 12, borderRadius: 6, marginTop: 12 },
-        div: { marginVertical: 15, height: 1.5 },
+        header: { padding: 25, paddingVertical: 35, borderBottomLeftRadius: 40, borderBottomRightRadius: 40 },
+        headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+        greeting: { fontSize: 28, fontWeight: 'bold' },
+        logoutBtn: { backgroundColor: 'rgba(255,0,0,0.05)', borderRadius: 15 },
+        scrollContent: { padding: 20, paddingBottom: 150 },
+        cardMain: { marginBottom: 20, borderRadius: 28, borderLeftWidth: 12, borderLeftColor: '#4CAF50', elevation: 8, backgroundColor: theme.cardBackground },
+        balanceTitle: { fontSize: 40, fontWeight: '900', marginVertical: 10 },
+        progress: { height: 14, borderRadius: 7, marginTop: 15 },
+        divider: { marginVertical: 18, height: 1.5, backgroundColor: 'rgba(0,0,0,0.05)' },
         row: { flexDirection: 'row', alignItems: 'center' },
-        rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 },
-        extraItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: theme.subText + '40' },
-        overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', padding: 25 },
-        modal: { padding: 25, borderRadius: 28, backgroundColor: theme.cardBackground },
-        input: { borderWidth: 1, borderRadius: 14, padding: 18, marginBottom: 15, fontSize: 16, color: theme.text },
+        rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 },
+        alertCard: { backgroundColor: theme.danger, borderRadius: 24, marginBottom: 22, elevation: 10 },
+        extraItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: theme.subText + '30' },
+        overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', padding: 25 },
+        modalBox: { padding: 30, borderRadius: 35, backgroundColor: theme.cardBackground },
+        inputField: { borderWidth: 1.5, borderRadius: 16, padding: 20, marginBottom: 18, fontSize: 18, color: theme.text },
         center: { alignItems: 'center', justifyContent: 'center' },
-        upcomingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: theme.subText + '20' }
+        upcomingBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: theme.subText + '15' }
     });
 
-    if (loading) { 
+    if (loading && !refreshing) { 
         return (
             <View style={[dynamicStyles.container, dynamicStyles.center]}>
                 <ActivityIndicator size="large" color={theme.primary} />
+                <Text style={{color: theme.subText, marginTop: 10}}>Sincronizando AWS...</Text>
             </View>
         ); 
     }
 
-    const somaRenda = rendaMensal + totalRendasExtras;
-    const saldoAtual = somaRenda - despesasPagasMes;
-    const percUtilizado = somaRenda > 0 ? (despesasPagasMes / somaRenda) : 0;
+    const totalRendaReal = rendaMensal + totalRendasExtras;
+    const saldoFinal = totalRendaReal - despesasPagasMes;
+    const razaoComprometida = totalRendaReal > 0 ? (despesasPagasMes / totalRendaReal) : 0;
 
     return (
         <View style={dynamicStyles.container}>
-            <Surface style={[dynamicStyles.header, { backgroundColor: isDarkTheme ? '#1c1c1c' : '#f5f5f5' }]} elevation={2}>
-                <Text style={[dynamicStyles.greeting, { color: theme.text }]}>Olá, {username}!</Text>
-                <Paragraph style={{ color: theme.subText }}>Resumo da sua saúde financeira</Paragraph>
+            {/* CABEÇALHO REESTRUTURADO COM BOTÃO DE SAIR */}
+            <Surface style={[dynamicStyles.header, { backgroundColor: isDarkTheme ? '#151515' : '#f5f5f5' }]} elevation={3}>
+                <View style={dynamicStyles.headerRow}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={[dynamicStyles.greeting, { color: theme.text }]}>Olá, {username}!</Text>
+                        <Paragraph style={{ color: theme.subText }}>Análise rápida da sua saúde financeira</Paragraph>
+                    </View>
+                    <IconButton 
+                        icon="logout-variant" 
+                        iconColor={theme.danger} 
+                        size={28} 
+                        onPress={handleLogout} 
+                        style={dynamicStyles.logoutBtn} 
+                    />
+                </View>
             </Surface>
 
             <ScrollView
                 contentContainerStyle={dynamicStyles.scrollContent}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[theme.primary]} />}
             >
-                {/* ALERTA DE CONTAS EM ATRASO */}
+                {/* ALERTA DE PENDÊNCIAS */}
                 {overdueExpenses.length > 0 && (
-                    <TouchableOpacity onPress={() => navigation.navigate('Despesas', { initialTab: 'overdue' })}>
-                        <Card style={[dynamicStyles.card, dynamicStyles.alertCard]}>
+                    <TouchableOpacity onPress={() => navigation.navigate('Despesas', { initialTab: 'overdue' })} activeOpacity={0.9}>
+                        <Card style={dynamicStyles.alertCard}>
                             <Card.Content style={dynamicStyles.row}>
-                                <Avatar.Icon size={44} icon="alert-decagram" color="white" style={{ backgroundColor: 'rgba(255,255,255,0.2)' }} />
-                                <View style={{ marginLeft: 15, flex: 1 }}>
-                                    <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Atenção!</Text>
-                                    <Text style={{ color: 'white', fontSize: 13 }}>Você tem {overdueExpenses.length} conta(s) vencida(s).</Text>
+                                <Avatar.Icon size={48} icon="alert-decagram" color="white" style={{ backgroundColor: 'rgba(255,255,255,0.25)' }} />
+                                <View style={{ marginLeft: 18, flex: 1 }}>
+                                    <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 18 }}>Atenção!</Text>
+                                    <Text style={{ color: 'white', fontSize: 14 }}>Você possui {overdueExpenses.length} conta(s) em atraso.</Text>
                                 </View>
-                                <MaterialCommunityIcons name="chevron-right" size={24} color="white" />
+                                <MaterialCommunityIcons name="arrow-right-bold-circle" size={32} color="white" />
                             </Card.Content>
                         </Card>
                     </TouchableOpacity>
                 )}
 
-                {/* CARD DE SALDO DISPONÍVEL */}
-                <Card style={[dynamicStyles.card, { borderLeftColor: saldoAtual < 0 ? theme.danger : '#4CAF50' }]}>
+                {/* DASHBOARD DE SALDO */}
+                <Card style={[dynamicStyles.cardMain, { borderLeftColor: saldoFinal < 0 ? theme.danger : '#4CAF50' }]}>
                     <Card.Content>
-                        <Text style={{ color: theme.subText, fontWeight: 'bold' }}>SALDO DISPONÍVEL (MÊS)</Text>
-                        <Title style={[dynamicStyles.balanceTitle, { color: saldoAtual < 0 ? theme.danger : '#4CAF50' }]}>
-                            R$ {saldoAtual.toFixed(2)}
+                        <Text style={{ color: theme.subText, fontWeight: 'bold', fontSize: 12, letterSpacing: 1 }}>SALDO ATUAL NO MÊS</Text>
+                        <Title style={[dynamicStyles.balanceTitle, { color: saldoFinal < 0 ? theme.danger : '#4CAF50' }]}>
+                            R$ {saldoFinal.toFixed(2)}
                         </Title>
-                        <ProgressBar progress={percUtilizado} color={percUtilizado > 0.85 ? theme.danger : theme.primary} style={dynamicStyles.progress} />
-                        <Text style={{ textAlign: 'center', marginTop: 8, fontSize: 12, color: theme.subText, fontWeight: 'bold' }}>
-                            {`${(percUtilizado * 100).toFixed(0)}% do orçamento comprometido`}
+                        <ProgressBar progress={razaoComprometida} color={razaoComprometida > 0.8 ? theme.danger : theme.primary} style={dynamicStyles.progress} />
+                        <Text style={{ textAlign: 'center', marginTop: 12, fontSize: 13, color: theme.subText, fontWeight: 'bold' }}>
+                            {`${(razaoComprometida * 100).toFixed(0)}% do seu orçamento comprometido`}
                         </Text>
                         
-                        <Divider style={dynamicStyles.div} />
+                        <Divider style={dynamicStyles.divider} />
                         
-                        <TouchableOpacity onPress={() => setRendaModalVisible(true)} style={dynamicStyles.rowBetween}>
+                        <TouchableOpacity onPress={() => setRendaModalVisible(true)} activeOpacity={0.6} style={dynamicStyles.rowBetween}>
                             <View style={dynamicStyles.row}>
-                                <Avatar.Icon size={32} icon="bank-transfer-in" color="#4CAF50" style={{ backgroundColor: '#4CAF5020' }} />
-                                <Text style={{ color: theme.text, marginLeft: 12, fontSize: 16, fontWeight: '500' }}>Renda Fixa: R$ {rendaMensal.toFixed(2)}</Text>
+                                <Avatar.Icon size={34} icon="bank-transfer-in" color="#4CAF50" style={{ backgroundColor: '#4CAF5015' }} />
+                                <Text style={{ color: theme.text, marginLeft: 15, fontSize: 17, fontWeight: '500' }}>Renda Fixa: R$ {rendaMensal.toFixed(2)}</Text>
                             </View>
-                            <MaterialCommunityIcons name="pencil-box-outline" size={22} color={theme.subText} />
+                            <MaterialCommunityIcons name="pencil-circle-outline" size={24} color={theme.primary} />
                         </TouchableOpacity>
 
                         <View style={dynamicStyles.rowBetween}>
                             <View style={dynamicStyles.row}>
-                                <Avatar.Icon size={32} icon="bank-transfer-out" color={theme.danger} style={{ backgroundColor: theme.danger + '20' }} />
-                                <Text style={{ color: theme.text, marginLeft: 12, fontSize: 16, fontWeight: '500' }}>Contas Pagas: R$ {despesasPagasMes.toFixed(2)}</Text>
+                                <Avatar.Icon size={34} icon="bank-transfer-out" color={theme.danger} style={{ backgroundColor: theme.danger + '15' }} />
+                                <Text style={{ color: theme.text, marginLeft: 15, fontSize: 17, fontWeight: '500' }}>Contas Pagas: R$ {despesasPagasMes.toFixed(2)}</Text>
                             </View>
                         </View>
                     </Card.Content>
                 </Card>
 
-                {/* RENDAS EXTRAS */}
-                <Card style={dynamicStyles.card}>
+                {/* GESTÃO DE RENDAS EXTRAS */}
+                <Card style={[dynamicStyles.cardMain, { borderLeftColor: theme.secondary }]}>
                     <Card.Title 
-                        title={`Extras do Mês (R$ ${totalRendasExtras.toFixed(2)})`}
-                        titleStyle={{ color: theme.text, fontWeight: 'bold', fontSize: 16 }}
-                        right={() => <IconButton icon="plus-circle" iconColor={theme.primary} size={28} onPress={() => setAddRendaExtraModalVisible(true)} />}
+                        title={`Rendas Extras (R$ ${totalRendasExtras.toFixed(2)})`}
+                        titleStyle={{ color: theme.text, fontWeight: 'bold', fontSize: 17 }}
+                        right={() => <IconButton icon="plus-circle-outline" iconColor={theme.secondary} size={30} onPress={() => setAddRendaExtraModalVisible(true)} />}
                     />
                     <Card.Content>
-                        {rendasExtras.length > 0 ? rendasExtras.map(renda => (
-                            <View key={renda.id} style={dynamicStyles.extraItem}>
-                                <Text style={{ color: theme.text, flex: 1, fontWeight: '500' }}>{renda.nome}</Text>
-                                <Text style={{ color: '#4CAF50', fontWeight: '900', marginRight: 10 }}>+ R$ {parseFloat(renda.valor).toFixed(2)}</Text>
-                                <IconButton icon="trash-can-outline" iconColor={theme.danger} size={18} onPress={() => handleDeleteRendaExtra(renda.id)} />
+                        {rendasExtras.length > 0 ? rendasExtras.map(extra => (
+                            <View key={extra.id} style={dynamicStyles.extraItem}>
+                                <Text style={{ color: theme.text, flex: 1, fontSize: 15 }}>{extra.nome}</Text>
+                                <Text style={{ color: '#4CAF50', fontWeight: '900', fontSize: 16, marginRight: 10 }}>+ R$ {parseFloat(extra.valor).toFixed(2)}</Text>
+                                <IconButton icon="delete-sweep-outline" iconColor={theme.danger} size={20} onPress={() => handleDeleteRendaExtra(extra.id)} />
                             </View>
-                        )) : <Text style={{ textAlign: 'center', color: theme.subText, marginVertical: 10 }}>Nenhuma entrada extra.</Text>}
+                        )) : (
+                            <View style={{padding: 20, alignItems: 'center'}}>
+                                <MaterialCommunityIcons name="cash-multiple" size={40} color={theme.subText + '40'} />
+                                <Text style={{ color: theme.subText, marginTop: 10 }}>Sem entradas adicionais.</Text>
+                            </View>
+                        )}
                     </Card.Content>
                 </Card>
 
-                {/* META PARA DÍVIDAS */}
+                {/* PLANO DE QUITAÇÃO INTELIGENTE */}
                 {debtSavingsGoals.daily > 0 && (
-                    <Card style={[dynamicStyles.card, { backgroundColor: isDarkTheme ? '#2a1e12' : '#fff9f0', borderLeftColor: '#FF9800' }]}>
-                        <Card.Title title="Plano de Quitação" titleStyle={{ color: theme.text, fontWeight: 'bold' }} left={() => <Avatar.Icon size={36} icon="calculator" color="#FF9800" style={{backgroundColor: '#FF980020'}} />} />
+                    <Card style={[dynamicStyles.cardMain, { backgroundColor: isDarkTheme ? '#2a1b10' : '#fff9f0', borderLeftColor: '#FF9800' }]}>
+                        <Card.Title 
+                            title="Plano de Quitação" 
+                            titleStyle={{ color: theme.text, fontWeight: 'bold' }} 
+                            left={() => <Avatar.Icon size={38} icon="calculator-variant" color="#FF9800" style={{backgroundColor: 'transparent'}} />} 
+                        />
                         <Card.Content style={dynamicStyles.center}>
-                            <Paragraph style={{ color: theme.text, textAlign: 'center' }}>Para quitar suas pendências no prazo, reserve:</Paragraph>
-                            <Title style={{ color: '#FF9800', fontWeight: '900', fontSize: 28 }}>R$ {debtSavingsGoals.daily.toFixed(2)} / dia</Title>
-                            <Text style={{ color: theme.subText, fontSize: 12 }}>Equivalente a R$ {debtSavingsGoals.monthly.toFixed(2)} por mês</Text>
+                            <Paragraph style={{ color: theme.text, textAlign: 'center', fontSize: 15 }}>Para quitar as dívidas do mês, reserve:</Paragraph>
+                            <Title style={{ color: '#FF9800', fontWeight: '900', fontSize: 30, marginVertical: 8 }}>R$ {debtSavingsGoals.daily.toFixed(2)} / dia</Title>
+                            <Text style={{ color: theme.subText, fontSize: 12, fontWeight: 'bold' }}>Objetivo mensal: R$ {debtSavingsGoals.monthly.toFixed(2)}</Text>
                         </Card.Content>
                     </Card>
                 )}
 
-                {/* PRÓXIMOS VENCIMENTOS */}
+                {/* PRÓXIMAS CONTAS NO RADAR */}
                 {upcomingExpenses.length > 0 && (
-                    <Card style={dynamicStyles.card}>
-                        <Card.Title title="Próximos Compromissos" titleStyle={{ color: theme.text, fontWeight: 'bold' }} />
+                    <Card style={dynamicStyles.cardMain}>
+                        <Card.Title 
+                            title="Próximos Compromissos" 
+                            titleStyle={{ color: theme.text, fontWeight: 'bold' }} 
+                            left={() => <Avatar.Icon size={38} icon="calendar-clock" color={theme.primary} style={{backgroundColor: 'transparent'}} />}
+                        />
                         <Card.Content>
-                            {upcomingExpenses.slice(0, 4).map(exp => (
-                                <View key={exp.id} style={dynamicStyles.upcomingRow}>
+                            {upcomingExpenses.slice(0, 3).map(exp => (
+                                <View key={exp.id} style={dynamicStyles.upcomingBox}>
                                     <View style={{ flex: 1 }}>
-                                        <Text style={{ color: theme.text, fontWeight: '600' }}>{exp.nome}</Text>
-                                        <Text style={{ color: theme.subText, fontSize: 11 }}>Vencimento em {new Date(exp.data_vencimento).toLocaleDateString()}</Text>
+                                        <Text style={{ color: theme.text, fontWeight: 'bold', fontSize: 15 }}>{exp.nome}</Text>
+                                        <Text style={{ color: theme.subText, fontSize: 12 }}>Vence em {new Date(exp.data_vencimento).toLocaleDateString('pt-BR')}</Text>
                                     </View>
-                                    <Text style={{ color: theme.text, fontWeight: 'bold', fontSize: 16 }}>R$ {parseFloat(exp.valor).toFixed(2)}</Text>
+                                    <Text style={{ color: theme.text, fontWeight: '900', fontSize: 17 }}>R$ {parseFloat(exp.valor).toFixed(2)}</Text>
                                 </View>
                             ))}
-                            <Button mode="text" onPress={() => navigation.navigate('Despesas')} labelStyle={{ fontWeight: 'bold' }}>VER LISTA COMPLETA</Button>
+                            <Button mode="outlined" onPress={() => navigation.navigate('Despesas')} style={{ marginTop: 15, borderRadius: 12 }}>GESTÃO COMPLETA</Button>
                         </Card.Content>
                     </Card>
                 )}
 
-                {/* MODAL: ATUALIZAR RENDA FIXA */}
-                <Modal visible={rendaModalVisible} transparent animationType="fade">
-                    <View style={dynamicStyles.overlay}>
-                        <Surface style={dynamicStyles.modal} elevation={5}>
-                            <Title style={{ color: theme.text, textAlign: 'center', marginBottom: 20 }}>Renda Mensal Fixa</Title>
-                            <TextInput 
-                                style={[dynamicStyles.input, { backgroundColor: isDarkTheme ? '#2a2a2a' : '#fff' }]} 
-                                keyboardType="numeric" 
-                                value={inputRenda} 
-                                onChangeText={setInputRenda}
-                                placeholder="0.00"
-                                placeholderTextColor={theme.subText}
-                            />
-                            <View style={dynamicStyles.row}>
-                                <Button mode="outlined" onPress={() => setRendaModalVisible(false)} style={{ flex: 1, marginRight: 10 }}>Cancelar</Button>
-                                <Button mode="contained" onPress={handleUpdateRenda} style={{ flex: 1 }}>Salvar</Button>
-                            </View>
-                        </Surface>
-                    </View>
-                </Modal>
-
-                {/* MODAL: ADICIONAR RENDA EXTRA */}
-                <Modal visible={addRendaExtraModalVisible} transparent animationType="slide">
-                    <View style={dynamicStyles.overlay}>
-                        <Surface style={dynamicStyles.modal} elevation={5}>
-                            <Title style={{ color: theme.text, marginBottom: 15 }}>Nova Renda Extra</Title>
-                            <TextInput style={[dynamicStyles.input, { backgroundColor: isDarkTheme ? '#2a2a2a' : '#fff' }]} placeholder="Descrição" placeholderTextColor={theme.subText} value={newRendaExtra.nome} onChangeText={t => setNewRendaExtra({...newRendaExtra, nome: t})} />
-                            <TextInput style={[dynamicStyles.input, { backgroundColor: isDarkTheme ? '#2a2a2a' : '#fff' }]} placeholder="Valor" placeholderTextColor={theme.subText} keyboardType="numeric" value={newRendaExtra.valor} onChangeText={t => setNewRendaExtra({...newRendaExtra, valor: t})} />
-                            <TouchableOpacity 
-                                style={[dynamicStyles.input, { backgroundColor: isDarkTheme ? '#2a2a2a' : '#fff', justifyContent: 'center' }]} 
-                                onPress={() => setShowDatePicker(true)}
-                            >
-                                <Text style={{ color: theme.text }}>Data: {newRendaExtra.data_recebimento.toLocaleDateString()}</Text>
-                            </TouchableOpacity>
-                            {showDatePicker && <DateTimePicker value={newRendaExtra.data_recebimento} mode="date" display="default" onChange={(e,d) => onChangeDate(e,d,'new')} />}
-                            <View style={dynamicStyles.row}>
-                                <Button mode="text" onPress={() => setAddRendaExtraModalVisible(false)} textColor={theme.danger} style={{ flex: 1 }}>Sair</Button>
-                                <Button mode="contained" onPress={handleAddRendaExtra} style={{ flex: 1 }}>Confirmar</Button>
-                            </View>
-                        </Surface>
-                    </View>
-                </Modal>
+                {/* ESPAÇAMENTO PREMIUM PARA SCROLL */}
+                <View style={{ height: 250 }} />
             </ScrollView>
+
+            {/* MODAL: ATUALIZAÇÃO DE RENDA BASE */}
+            <Modal visible={rendaModalVisible} transparent animationType="slide">
+                <View style={dynamicStyles.overlay}>
+                    <Surface style={dynamicStyles.modalBox} elevation={5}>
+                        <Title style={{ color: theme.text, textAlign: 'center', marginBottom: 25, fontWeight: 'bold' }}>Renda Mensal Fixa</Title>
+                        <TextInput 
+                            style={[dynamicStyles.inputField, { backgroundColor: isDarkTheme ? '#252525' : '#f9f9f9', borderColor: theme.subText + '30' }]} 
+                            keyboardType="numeric" 
+                            value={inputRenda} 
+                            onChangeText={setInputRenda}
+                            placeholder="0.00"
+                            placeholderTextColor={theme.subText}
+                        />
+                        <View style={{flexDirection: 'row', gap: 15}}>
+                            <Button mode="text" onPress={() => setRendaModalVisible(false)} textColor={theme.danger} style={{ flex: 1 }}>CANCELAR</Button>
+                            <Button mode="contained" onPress={handleUpdateRenda} style={{ flex: 1.5, borderRadius: 15 }}>SALVAR RENDA</Button>
+                        </View>
+                    </Surface>
+                </View>
+            </Modal>
+
+            {/* MODAL: NOVA ENTRADA EXTRA */}
+            <Modal visible={addRendaExtraModalVisible} transparent animationType="fade">
+                <View style={dynamicStyles.overlay}>
+                    <Surface style={dynamicStyles.modalBox} elevation={5}>
+                        <Title style={{ color: theme.text, marginBottom: 20, textAlign: 'center', fontWeight: 'bold' }}>Nova Entrada Extra</Title>
+                        <TextInput style={[dynamicStyles.inputField, { backgroundColor: isDarkTheme ? '#252525' : '#f9f9f9' }]} placeholder="Descrição (ex: Bônus)" placeholderTextColor={theme.subText} value={newRendaExtra.nome} onChangeText={t => setNewRendaExtra({...newRendaExtra, nome: t})} />
+                        <TextInput style={[dynamicStyles.inputField, { backgroundColor: isDarkTheme ? '#252525' : '#f9f9f9' }]} placeholder="Valor R$" placeholderTextColor={theme.subText} keyboardType="numeric" value={newRendaExtra.valor} onChangeText={t => setNewRendaExtra({...newRendaExtra, valor: t})} />
+                        
+                        <TouchableOpacity style={[dynamicStyles.inputField, { backgroundColor: isDarkTheme ? '#252525' : '#f9f9f9', justifyContent: 'center' }]} onPress={() => setShowDatePicker(true)}>
+                            <Text style={{ color: theme.text }}>Data: {newRendaExtra.data_recebimento.toLocaleDateString('pt-BR')}</Text>
+                        </TouchableOpacity>
+                        
+                        {showDatePicker && <DateTimePicker value={newRendaExtra.data_recebimento} mode="date" display="default" onChange={onChangeDate} />}
+                        
+                        <View style={{flexDirection: 'row', gap: 15, marginTop: 10}}>
+                            <Button mode="text" onPress={() => setAddRendaExtraModalVisible(false)} textColor={theme.danger} style={{ flex: 1 }}>FECHAR</Button>
+                            <Button mode="contained" onPress={handleAddRendaExtra} style={{ flex: 1.5, borderRadius: 15 }}>CONFIRMAR</Button>
+                        </View>
+                    </Surface>
+                </View>
+            </Modal>
         </View>
     );
 }
