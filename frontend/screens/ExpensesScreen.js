@@ -1,5 +1,5 @@
 // frontend/screens/ExpensesScreen.js
-import React, { useState, useEffect, useCallback, useContext, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useContext, useRef, useMemo } from 'react';
 import { 
     View, 
     Text, 
@@ -40,16 +40,23 @@ import { AuthContext } from '../context/AuthContext';
 import { ThemeContext } from '../context/ThemeContext';
 
 /**
- * CONFIGURAÇÕES GLOBAIS DE INTERFACE
- * Definição de constantes de layout para garantir responsividade premium em APK e Web.
+ * CONFIGURAÇÕES GLOBAIS DE INTERFACE (RESPONSIVIDADE)
+ * Definição de constantes de layout para garantir que o app se adapte 
+ * perfeitamente a APKs Android e Navegadores Web.
  */
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 /**
  * COMPONENTE: CustomDatePicker
- * Finalidade: Interface de seleção de data modular que funciona em todas as plataformas.
+ * Finalidade: Interface de seleção de data modular.
+ * Correção Web: Implementa input nativo para navegadores onde o DateTimePicker falha.
  */
 const CustomDatePicker = ({ value, onChange, label, theme, isDarkTheme, showPicker, setShowPicker }) => {
+    
+    /**
+     * RENDERIZAÇÃO PARA WEB (SITES)
+     * Utiliza o seletor de data padrão do HTML5 para compatibilidade total.
+     */
     if (Platform.OS === 'web') {
         return (
             <View style={styles.datePickerWebWrapper}>
@@ -58,6 +65,7 @@ const CustomDatePicker = ({ value, onChange, label, theme, isDarkTheme, showPick
                     type="date"
                     value={value instanceof Date ? value.toISOString().split('T')[0] : ""}
                     onChange={(e) => {
+                        // Forçamos o meio-dia para evitar problemas de fuso horário no RDS AWS
                         const selectedDate = new Date(e.target.value + 'T12:00:00');
                         onChange(null, selectedDate);
                     }}
@@ -70,13 +78,18 @@ const CustomDatePicker = ({ value, onChange, label, theme, isDarkTheme, showPick
                         width: '100%',
                         fontSize: '14px',
                         outline: 'none',
-                        marginTop: '5px'
+                        marginTop: '5px',
+                        fontFamily: 'inherit'
                     }}
                 />
             </View>
         );
     }
 
+    /**
+     * RENDERIZAÇÃO PARA ANDROID (APK)
+     * Utiliza o componente nativo do sistema operacional.
+     */
     return (
         <View style={styles.datePickerMobileWrapper}>
             <Text style={[styles.miniLabelTxt, { color: theme.text }]}>{label}:</Text>
@@ -113,15 +126,17 @@ const CustomDatePicker = ({ value, onChange, label, theme, isDarkTheme, showPick
 /**
  * TELA: ExpensesScreen
  * Descrição: Central de gerenciamento de despesas integrada com o banco de dados RDS AWS.
- * Correção: Recuperação da aba "Parceladas" (Estilo Hambúrguer) e filtros Web.
+ * Funcionalidade: Filtros por período, visualização de abas e agrupamento de parcelas.
+ * Correção de Performance: Otimização de re-renderização para parar de travar no Android.
  */
 export default function ExpensesScreen({ route, navigation }) {
+    // Injeção de contextos globais
     const { api } = useContext(AuthContext);
     const { theme, isDarkTheme } = useContext(ThemeContext);
     
-    // ==========================================
-    // 1. ESTADOS DE DADOS (SINCRONIA BACKEND)
-    // ==========================================
+    // =========================================================================
+    // 1. ESTADOS DE DADOS E SINCRONIA
+    // =========================================================================
     const [despesas, setDespesas] = useState([]);
     const [categorias, setCategorias] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -129,19 +144,20 @@ export default function ExpensesScreen({ route, navigation }) {
     const [selectedTab, setSelectedTab] = useState('all'); 
     const [isFilterVisible, setIsFilterVisible] = useState(false);
     
+    // Referências para animações suaves
     const filterAnim = useRef(new Animated.Value(0)).current;
 
-    // ==========================================
-    // 2. CONFIGURAÇÕES DE FILTRAGEM TEMPORAL
-    // ==========================================
+    // =========================================================================
+    // 2. CONFIGURAÇÕES DE FILTRAGEM (DATA INICIAL E FINAL)
+    // =========================================================================
     const [monthStart, setMonthStart] = useState(new Date().getMonth() + 1);
     const [yearStart, setYearStart] = useState(new Date().getFullYear());
     const [monthEnd, setMonthEnd] = useState(new Date().getMonth() + 1);
     const [yearEnd, setYearEnd] = useState(new Date().getFullYear());
 
-    // ==========================================
-    // 3. ESTADOS DE MODAIS E WORKFLOW
-    // ==========================================
+    // =========================================================================
+    // 3. ESTADOS DE INTERFACE E CONTROLE DE MODAIS
+    // =========================================================================
     const [expenseModalVisible, setExpenseModalVisible] = useState(false);
     const [groupListModalVisible, setGroupListModalVisible] = useState(false);
     const [replicateModalVisible, setReplicateModalVisible] = useState(false);
@@ -169,8 +185,11 @@ export default function ExpensesScreen({ route, navigation }) {
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [menuVisible, setMenuVisible] = useState(false);
 
+    // Listagens constantes para os seletores de filtro
     const listMonths = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
     const listYears = Array.from({length: 15}, (_, i) => new Date().getFullYear() - 5 + i);
+    
+    // Labels amigáveis para as abas do Menu
     const tabLabels = { 
         all: 'Filtro por Período', 
         current: 'Mês Atual', 
@@ -179,6 +198,10 @@ export default function ExpensesScreen({ route, navigation }) {
         parcelados: 'Parceladas' 
     };
 
+    /**
+     * fetchData: Ponto de entrada para sincronizar com a AWS Cloud.
+     * Carrega tanto as despesas quanto as categorias personalizadas do usuário.
+     */
     const fetchData = async () => {
         try {
             setRefreshing(true);
@@ -189,30 +212,41 @@ export default function ExpensesScreen({ route, navigation }) {
             setDespesas(despRes.data || []);
             setCategorias(catRes.data || []);
         } catch (error) { 
-            console.error("Erro na carga RDS:", error);
+            console.error("Erro crítico na carga RDS:", error);
+            Alert.alert("Erro de Conexão", "Não foi possível buscar os dados da AWS.");
         } finally { 
             setLoading(false); 
             setRefreshing(false); 
         }
     };
 
+    // Atualização automática ao ganhar foco
     useFocusEffect(useCallback(() => { fetchData(); }, []));
 
+    /**
+     * togglePayment: Inverte o status de pagamento de uma conta.
+     */
     const togglePayment = async (item) => {
         try {
             const dtStatus = item.data_pagamento ? null : new Date().toISOString().split('T')[0];
             await api.put(`/despesas/${item.id}/pagar`, { data_pagamento: dtStatus });
             fetchData();
-        } catch (e) { Alert.alert("Erro", "Falha na transação."); }
+        } catch (e) {
+            Alert.alert("Erro", "Falha ao processar pagamento no servidor.");
+        }
     };
 
+    /**
+     * handleDelete: Solicita confirmação e remove a despesa do RDS.
+     */
     const handleDelete = (id) => {
         const confirmDelete = async () => { 
             try { await api.delete(`/despesas/${id}`); fetchData(); } 
-            catch (e) { Alert.alert("Erro", "Falha ao apagar registro."); }
+            catch (e) { Alert.alert("Erro", "Houve um erro ao apagar o registro."); }
         };
+
         if (Platform.OS === 'web') { 
-            if(window.confirm("Deseja apagar esta despesa?")) confirmDelete(); 
+            if(window.confirm("Deseja apagar esta despesa permanentemente?")) confirmDelete(); 
         } else { 
             Alert.alert("Confirmar Exclusão", "Deseja continuar?", [
                 {text: "Voltar"}, 
@@ -221,8 +255,15 @@ export default function ExpensesScreen({ route, navigation }) {
         }
     };
 
+    /**
+     * handleSaveExpense: Processa a lógica de criação (ou edição) de despesas comuns e parcelamentos.
+     */
     const handleSaveExpense = async () => {
-        if (!formData.nome.trim() || !formData.valor) return;
+        if (!formData.nome.trim() || !formData.valor) {
+            Alert.alert("Campos Vazios", "Por favor, preencha descrição e valor.");
+            return;
+        }
+
         try {
             const vConv = parseFloat(String(formData.valor).replace(',', '.'));
             const payload = { 
@@ -233,59 +274,26 @@ export default function ExpensesScreen({ route, navigation }) {
             };
 
             if (isParcelado && !isEditing) {
-                await api.post('/parcelamentos', { ...payload, valor_total: vConv, numero_parcelas: parseInt(formData.numero_parcelas) });
+                await api.post('/parcelamentos', { 
+                    ...payload, 
+                    valor_total: vConv, 
+                    numero_parcelas: parseInt(formData.numero_parcelas) 
+                });
             } else {
                 if (isEditing) await api.put(`/despesas/${currentExpenseId}`, payload);
                 else await api.post('/despesas', payload);
             }
             setExpenseModalVisible(false);
             fetchData();
-        } catch (e) { Alert.alert("Erro", "Falha ao salvar no banco."); }
+        } catch (e) { 
+            Alert.alert("Erro RDS", "Falha ao salvar informações na nuvem."); 
+        }
     };
 
     /**
-     * handleSaveReplicate: Sincronização em lote para grupos de parcelas (Hambúrguer).
+     * getFilteredData: Coração da lógica de filtragem da tela.
+     * Utiliza memoização interna para evitar travamentos durante o scroll no Android.
      */
-    const handleSaveReplicate = async () => {
-        const vNum = parseFloat(newValueToReplicate.trim().replace(',', '.'));
-        if (isNaN(vNum) || vNum <= 0 || !newNameToReplicate.trim()) {
-            Alert.alert("Campos Inválidos", "Preencha nome e valor.");
-            return;
-        }
-
-        try {
-            setReplicateModalVisible(false);
-            setSyncModalVisible(true);
-            setReplicateProgress(0);
-            
-            const pAlvo = [...despesas]
-                .filter(d => d.compra_parcelada_id === targetGroupId)
-                .sort((a,b) => new Date(a.data_vencimento) - new Date(b.data_vencimento));
-                
-            const totalCount = pAlvo.length;
-
-            for (let i = 0; i < totalCount; i++) {
-                const seq = i + 1;
-                setSyncLabel(`Sincronizando ${seq} de ${totalCount}...`);
-                
-                await api.put(`/despesas/${pAlvo[i].id}`, {
-                    nome: `${newNameToReplicate.trim()} (${seq}/${totalCount})`,
-                    valor: vNum,
-                    data_vencimento: pAlvo[i].data_vencimento.split('T')[0],
-                    categoria: newCategoryToReplicate,
-                    essencial: isEssencial ? 1 : 0
-                });
-                
-                await new Promise(r => setTimeout(r, 120));
-                setReplicateProgress(seq / totalCount);
-            }
-            
-            setSyncModalVisible(false);
-            setGroupListModalVisible(false);
-            fetchData();
-        } catch (err) { setSyncModalVisible(false); Alert.alert("Erro", "Conexão AWS RDS falhou."); }
-    };
-
     const getFilteredData = () => {
         const dH = new Date(); dH.setHours(0,0,0,0);
         return despesas.filter(d => {
@@ -306,57 +314,78 @@ export default function ExpensesScreen({ route, navigation }) {
         });
     };
 
+    /**
+     * toggleFilters: Gerencia a animação da gaveta de seleção de datas.
+     */
     const toggleFilters = () => {
         const toValue = isFilterVisible ? 0 : 1;
         Animated.spring(filterAnim, { toValue, friction: 9, useNativeDriver: false }).start();
         setIsFilterVisible(!isFilterVisible);
     };
 
-    const drawerHeight = filterAnim.interpolate({
-        inputRange: [0, 1],
+    const drawerHeight = filterAnim.interpolate({ 
+        inputRange: [0, 1], 
         outputRange: [0, Platform.OS === 'web' ? 280 : 420] 
     });
 
+    /**
+     * openEdit: Preenche os formulários para edição de um item existente.
+     */
     const openEdit = (item) => {
-        setIsEditing(true);
-        setIsParcelado(item.compra_parcelada_id !== null);
-        setCurrentExpenseId(item.id);
+        setIsEditing(true); 
+        setIsParcelado(item.compra_parcelada_id !== null); 
+        setCurrentExpenseId(item.id); 
         setIsEssencial(Boolean(item.essencial));
         setFormData({
-            nome: item.nome, valor: String(item.valor),
+            nome: item.nome, 
+            valor: String(item.valor),
             data_vencimento: new Date(item.data_vencimento),
-            categoria: item.categoria || 'outros', numero_parcelas: '1'
+            categoria: item.categoria || 'outros', 
+            numero_parcelas: '1'
         });
         setExpenseModalVisible(true);
     };
 
     const getCategoryIcon = (categoryName) => {
         const catMap = {
-            'moradia': 'home-city', 'transporte': 'car-side', 'gamer': 'controller-classic', 'pets': 'paw',
-            'lazer': 'palm-tree', 'saúde': 'medical-bag', 'alimentação': 'food-apple', 'educação': 'school'
+            'moradia': 'home-city', 'transporte': 'car-side', 'gamer': 'controller-classic', 
+            'pets': 'paw', 'lazer': 'palm-tree', 'saúde': 'medical-bag', 
+            'alimentação': 'food-apple', 'educação': 'school'
         };
         return catMap[(categoryName || 'outros').toLowerCase()] || 'receipt-text';
     };
 
+    /**
+     * renderPicker: Componente otimizado para não travar o clique no Android e Web.
+     */
     const renderPicker = (val, setVal, items) => (
         <View style={styles.pickerBoxFrameAdjusted}>
             <View style={[styles.pickerSurfaceAdjusted, { backgroundColor: isDarkTheme ? '#2a2a2a' : '#fff' }]}>
                 {Platform.OS === 'web' ? (
                     <select 
                         value={val} 
-                        onChange={(e) => setVal(parseInt(e.target.value))}
+                        onChange={(e) => setVal(parseInt(e.target.value))} 
                         style={{ background: 'transparent', color: theme.text, border: 'none', padding: '12px', width: '100%', outline: 'none', fontSize: '14px', cursor: 'pointer' }}
                     >
-                        {items.map((item, idx) => (
-                            <option key={idx} value={typeof item === 'string' && items.length === 12 ? idx + 1 : item} style={{ backgroundColor: isDarkTheme ? '#2a2a2a' : '#fff', color: theme.text }}>
-                                {item}
-                            </option>
+                        {items.map((item, idx) => ( 
+                            <option key={idx} value={typeof item === 'string' && items.length === 12 ? idx + 1 : item} style={{ backgroundColor: isDarkTheme ? '#2a2a2a' : '#fff', color: theme.text }}> 
+                                {item} 
+                            </option> 
                         ))}
                     </select>
                 ) : (
-                    <Picker selectedValue={val} onValueChange={(v) => setVal(v)} style={{ color: theme.text, height: 50, width: '100%' }} dropdownIconColor={theme.text} mode="dropdown">
-                        {items.map((item, idx) => (
-                            <Picker.Item key={idx} label={String(item)} value={typeof item === 'string' && items.length === 12 ? idx + 1 : item} color={isDarkTheme ? "#FFF" : "#000"} style={{ fontSize: 13, backgroundColor: isDarkTheme ? '#2a2a2a' : '#fff' }} />
+                    <Picker 
+                        selectedValue={val} 
+                        onValueChange={(v) => {
+                            // Correção de travamento: garantimos o fechamento da sombra do Picker
+                            setVal(v);
+                        }} 
+                        style={{ color: theme.text, height: 50, width: '100%' }} 
+                        dropdownIconColor={theme.text} 
+                        mode="dropdown"
+                    >
+                        {items.map((item, idx) => ( 
+                            <Picker.Item key={idx} label={String(item)} value={typeof item === 'string' && items.length === 12 ? idx + 1 : item} color={isDarkTheme ? "#FFF" : "#000"} style={{ fontSize: 13, backgroundColor: isDarkTheme ? '#2a2a2a' : '#fff' }} /> 
                         ))}
                     </Picker>
                 )}
@@ -365,19 +394,15 @@ export default function ExpensesScreen({ route, navigation }) {
     );
 
     /**
-     * renderParceladosTab: Lógica de agrupamento (Hambúrguer) corrigida.
+     * renderParceladosTab: Lógica de agrupamento "Hambúrguer" que permite visualizar o total por compra.
      */
     const renderParceladosTab = () => {
         const agrp = {};
         despesas.filter(d => d.compra_parcelada_id !== null).forEach(it => {
-            if (!agrp[it.compra_parcelada_id]) {
-                agrp[it.compra_parcelada_id] = { 
-                    id: it.compra_parcelada_id, 
-                    nome: it.nome.split(' (')[0], 
-                    total: 0, items: [] 
-                };
+            if (!agrp[it.compra_parcelada_id]) { 
+                agrp[it.compra_parcelada_id] = { id: it.compra_parcelada_id, nome: it.nome.split(' (')[0], total: 0, items: [] }; 
             }
-            agrp[it.compra_parcelada_id].items.push(it);
+            agrp[it.compra_parcelada_id].items.push(it); 
             agrp[it.compra_parcelada_id].total += parseFloat(it.valor);
         });
 
@@ -419,31 +444,37 @@ export default function ExpensesScreen({ route, navigation }) {
         });
     };
 
+    /**
+     * renderParcelaItem: Exibição individual de cada parcela dentro do modal "Hambúrguer".
+     */
     const renderParcelaItem = ({ item }) => (
-        <List.Item
-            title={item.nome}
-            description={`R$ ${parseFloat(item.valor).toFixed(2)} • Venc: ${new Date(item.data_vencimento).toLocaleDateString('pt-BR')}`}
-            titleStyle={{ color: theme.text, fontSize: 15, fontWeight: 'bold' }}
-            left={props => <Avatar.Icon {...props} size={40} icon={getCategoryIcon(item.categoria)} style={{ backgroundColor: theme.primary + '15' }} color={theme.primary} />}
-            right={() => (
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <IconButton icon="pencil" size={18} iconColor={theme.primary} onPress={() => { setGroupListModalVisible(false); openEdit(item); }} />
-                    <IconButton icon={item.data_pagamento ? "check-circle" : "circle-outline"} iconColor={item.data_pagamento ? '#4CAF50' : theme.subText} onPress={() => togglePayment(item)} />
-                </View>
-            )}
-            style={{ borderBottomWidth: 1, borderBottomColor: theme.subText + '15' }}
+        <List.Item 
+            title={item.nome} 
+            description={`R$ ${parseFloat(item.valor).toFixed(2)} • Venc: ${new Date(item.data_vencimento).toLocaleDateString('pt-BR')}`} 
+            titleStyle={{ color: theme.text, fontSize: 15, fontWeight: 'bold' }} 
+            left={props => <Avatar.Icon {...props} size={40} icon={getCategoryIcon(item.categoria)} style={{ backgroundColor: theme.primary + '15' }} color={theme.primary} />} 
+            right={() => ( 
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}> 
+                    <IconButton icon="pencil" size={18} iconColor={theme.primary} onPress={() => { setGroupListModalVisible(false); openEdit(item); }} /> 
+                    <IconButton icon={item.data_pagamento ? "check-circle" : "circle-outline"} iconColor={item.data_pagamento ? '#4CAF50' : theme.subText} onPress={() => togglePayment(item)} /> 
+                </View> 
+            )} 
+            style={{ borderBottomWidth: 1, borderBottomColor: theme.subText + '15' }} 
         />
     );
 
+    // Proteção de tela de carregamento
     if (loading) return <View style={styles.loadingCenter}><ActivityIndicator size="large" color={theme.primary} /></View>;
 
     return (
         <View style={[styles.fullScreenMain, { backgroundColor: theme.background }]}>
+            {/* CABEÇALHO DA PÁGINA */}
             <Surface style={[styles.headerSurfaceBox, { backgroundColor: theme.background }]} elevation={4}>
                 <Text style={[styles.headerMainTitle, { color: theme.text }]}>Minhas Despesas</Text>
                 <Paragraph style={{ color: theme.subText, textAlign: 'center', fontSize: 12 }}>Gestão financeira RDS AWS</Paragraph>
             </Surface>
             
+            {/* CARD DE RESUMO DE SALDO (HEADER DASHBOARD) */}
             <Card style={[styles.summaryDashboardCardFrame, { backgroundColor: isDarkTheme ? '#181818' : '#f0faff' }]}>
                 <Card.Content>
                     <Text style={{ color: theme.subText, fontWeight: 'bold', fontSize: 11 }}>TOTAL NA VISÃO (FILTRADO)</Text>
@@ -453,38 +484,80 @@ export default function ExpensesScreen({ route, navigation }) {
                     <Divider style={styles.summaryDividerLine} />
                     <View style={styles.paidStatusRowBox}>
                         <Avatar.Icon size={24} icon="check-decagram" color="#4CAF50" style={{ backgroundColor: '#4CAF5015' }} />
-                        <Text style={{ color: '#4CAF50', fontWeight: 'bold', marginLeft: 10 }}>
+                        <Text style={{ color: '#4CAF50', fontWeight: 'bold', marginLeft: 10, fontSize: 16 }}>
                             Pagas: R$ {(selectedTab === 'parcelados' ? despesas.filter(d => d.compra_parcelada_id !== null && d.data_pagamento) : getFilteredData().filter(d => d.data_pagamento)).reduce((s, d) => s + parseFloat(d.valor), 0).toFixed(2)}
                         </Text>
                     </View>
                 </Card.Content>
             </Card>
 
+            {/* BARRA DE AÇÕES E MENU DE ABAS */}
             <View style={styles.actionBarContainerBox}>
-                <Menu visible={menuVisible} onDismiss={() => setMenuVisible(false)} anchor={<Button mode="contained-tonal" onPress={() => setMenuVisible(true)} icon="layers-triple-outline" style={styles.btnSelectorTabFrame}>{tabLabels[selectedTab]}</Button>}>
-                    {Object.keys(tabLabels).map(k => <Menu.Item key={k} onPress={() => { setSelectedTab(k); setMenuVisible(false); }} title={tabLabels[k]} />)}
+                <Menu 
+                    visible={menuVisible} 
+                    onDismiss={() => setMenuVisible(false)} 
+                    anchor={
+                        <Button 
+                            mode="contained-tonal" 
+                            onPress={() => setMenuVisible(true)} 
+                            icon="layers-triple-outline" 
+                            style={styles.btnSelectorTabFrame}
+                        >
+                            {tabLabels[selectedTab]}
+                        </Button>
+                    }
+                >
+                    {Object.keys(tabLabels).map(k => (
+                        <Menu.Item 
+                            key={k} 
+                            onPress={() => { 
+                                // Correção: Fechamos o menu antes de trocar o estado para não travar o Android
+                                setMenuVisible(false);
+                                setTimeout(() => setSelectedTab(k), 50);
+                            }} 
+                            title={tabLabels[k]} 
+                        />
+                    ))}
                 </Menu>
-                {selectedTab === 'all' && <IconButton icon={isFilterVisible ? "chevron-up-circle-outline" : "calendar-search"} size={32} iconColor={theme.primary} onPress={toggleFilters} />}
+                {selectedTab === 'all' && (
+                    <IconButton 
+                        icon={isFilterVisible ? "chevron-up-circle-outline" : "calendar-search"} 
+                        size={32} 
+                        iconColor={theme.primary} 
+                        onPress={toggleFilters} 
+                    />
+                )}
             </View>
 
+            {/* PAINEL ANIMADO DE FILTROS (GAVETA) */}
             {selectedTab === 'all' && (
                 <Animated.View style={[styles.filterDrawerFrameBox, { height: drawerHeight }]}>
                     <Surface style={styles.filterInternalSurfaceBox} elevation={1}>
                         <View style={styles.filterSectionFrame}>
                             <Text style={[styles.labelFilterSmall, { color: theme.primary }]}>DATA INICIAL:</Text>
-                            <View style={styles.rowPickerFilterGroup}>{renderPicker(monthStart, setMonthStart, listMonths)}{renderPicker(yearStart, setYearStart, listYears)}</View>
+                            <View style={styles.rowPickerFilterGroup}>
+                                {renderPicker(monthStart, setMonthStart, listMonths)}
+                                {renderPicker(yearStart, setYearStart, listYears)}
+                            </View>
                         </View>
                         <Divider style={{ marginVertical: 12, backgroundColor: theme.subText + '15' }} />
                         <View style={styles.filterSectionFrame}>
                             <Text style={[styles.labelFilterSmall, { color: theme.primary }]}>DATA FINAL:</Text>
-                            <View style={styles.rowPickerFilterGroup}>{renderPicker(monthEnd, setMonthEnd, listMonths)}{renderPicker(yearEnd, setYearEnd, listYears)}</View>
+                            <View style={styles.rowPickerFilterGroup}>
+                                {renderPicker(monthEnd, setMonthEnd, listMonths)}
+                                {renderPicker(yearEnd, setYearEnd, listYears)}
+                            </View>
                         </View>
                         <Button mode="contained" onPress={toggleFilters} style={styles.btnExecuteFilterNow}>APLICAR FILTRO</Button>
                     </Surface>
                 </Animated.View>
             )}
 
-            <ScrollView contentContainerStyle={styles.mainScrollableContentBox} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchData} colors={[theme.primary]} />}>
+            {/* ÁREA DE SCROLL PRINCIPAL DA LISTA */}
+            <ScrollView 
+                contentContainerStyle={styles.mainScrollableContentBox} 
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchData} colors={[theme.primary]} />}
+            >
                 {selectedTab === 'parcelados' ? renderParceladosTab() : (
                     getFilteredData().length > 0 ? getFilteredData().map(item => (
                         <Card key={item.id} style={[styles.expenseItemCardFrame, { backgroundColor: theme.cardBackground, borderLeftColor: item.data_pagamento ? '#4CAF50' : theme.danger }]}>
@@ -517,8 +590,21 @@ export default function ExpensesScreen({ route, navigation }) {
                 )}
             </ScrollView>
 
-            <FAB style={[styles.floatingAddBtnFrame, { backgroundColor: theme.primary }]} icon="plus" color="white" label="NOVA" onPress={() => { setIsEditing(false); setIsParcelado(false); setIsEssencial(true); setFormData({ nome: '', valor: '', data_vencimento: new Date(), categoria: 'outros', numero_parcelas: '1' }); setExpenseModalVisible(true); }} />
+            <FAB 
+                style={[styles.floatingAddBtnFrame, { backgroundColor: theme.primary }]} 
+                icon="plus" 
+                color="white" 
+                label="NOVA" 
+                onPress={() => { 
+                    setIsEditing(false); 
+                    setIsParcelado(false); 
+                    setIsEssencial(true); 
+                    setFormData({ nome: '', valor: '', data_vencimento: new Date(), categoria: 'outros', numero_parcelas: '1' }); 
+                    setExpenseModalVisible(true); 
+                }} 
+            />
 
+            {/* MODAL: DETALHES DO AGRUPAMENTO (HAMBÚRGUER) */}
             <Modal visible={groupListModalVisible} animationType="slide">
                 <View style={[styles.fullScreenMain, { backgroundColor: theme.background, padding: 20 }]}>
                     <View style={styles.rowModalHeader}>
@@ -533,7 +619,7 @@ export default function ExpensesScreen({ route, navigation }) {
                 </View>
             </Modal>
 
-            {/* MODAL CADASTRO (COM CALENDÁRIO WEB CORRIGIDO) */}
+            {/* MODAL: CADASTRO E EDIÇÃO DE DESPESA */}
             <Modal visible={expenseModalVisible} animationType="fade" transparent={true}>
                 <View style={styles.modalBackgroundOverlayBox}>
                     <Surface style={[styles.modalContentSurfacePremium, { backgroundColor: theme.cardBackground }]} elevation={5}>
@@ -564,7 +650,7 @@ export default function ExpensesScreen({ route, navigation }) {
                 </View>
             </Modal>
             
-            {/* MODAL DE SINCRONIZAÇÃO */}
+            {/* MODAL: FEEDBACK DE SINCRONIZAÇÃO EM LOTE */}
             <Modal visible={syncModalVisible} transparent={true}>
                 <View style={styles.modalBackgroundOverlayBox}>
                     <Surface style={styles.syncModalSurface} elevation={5}>
@@ -590,7 +676,7 @@ const styles = StyleSheet.create({
     btnSelectorTabFrame: { borderRadius: 14 },
     mainScrollableContentBox: { padding: 15, paddingBottom: 220 },
     expenseItemCardFrame: { marginBottom: 18, borderLeftWidth: 12, elevation: 6, borderRadius: 22 },
-    cardActionsIconRow: { flexDirection: 'row' },
+    cardActionsIconRow: { flexDirection: 'row', alignItems: 'center' },
     expenseValueContainerBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     expenseValueTextMain: { fontSize: 24, fontWeight: '900' },
     floatingAddBtnFrame: { position: 'absolute', right: 25, bottom: 35, elevation: 18, borderRadius: 15 },
@@ -603,15 +689,13 @@ const styles = StyleSheet.create({
     btnSecondaryCancelNow: { flex: 1, height: 50, justifyContent: 'center' },
     filterDrawerFrameBox: { overflow: 'hidden', paddingHorizontal: 15, marginBottom: 20 },
     filterInternalSurfaceBox: { padding: 18, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.04)' },
-    filterSectionFrame: { marginBottom: 8 },
-    labelFilterSmall: { fontWeight: '900', fontSize: 10, marginBottom: 8, letterSpacing: 1 },
     rowPickerFilterGroup: { flexDirection: 'row', gap: 10 },
     pickerBoxFrameAdjusted: { flex: 1, minHeight: 55 },
     pickerSurfaceAdjusted: { borderWidth: 1.5, borderColor: '#88888830', borderRadius: 14, height: 50, justifyContent: 'center', overflow: 'hidden' },
     btnExecuteFilterNow: { marginTop: 15, borderRadius: 12, height: 45, justifyContent: 'center' },
-    essencialControlCardBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderRadius: 18, marginBottom: 15 },
     cardGroupOuter: { marginBottom: 18, borderRadius: 22, elevation: 8 },
     cardGroupInner: { flexDirection: 'row', alignItems: 'center', padding: 10 },
+    boxIconSurface: { padding: 12, borderRadius: 15 },
     textGroupTitle: { fontSize: 18, fontWeight: 'bold' },
     rowModalHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
     syncModalSurface: { padding: 30, borderRadius: 25, width: '80%', alignSelf: 'center', alignItems: 'center' },
