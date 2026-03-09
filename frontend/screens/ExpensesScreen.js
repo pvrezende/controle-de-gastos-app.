@@ -39,11 +39,15 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AuthContext } from '../context/AuthContext';
 import { ThemeContext } from '../context/ThemeContext';
 
+/**
+ * CONFIGURAÇÕES GLOBAIS DE INTERFACE
+ * Definição de constantes de layout para garantir responsividade premium em APK e Web.
+ */
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 /**
  * COMPONENTE: CustomDatePicker
- * Finalidade: Interface de seleção de data modular.
+ * Finalidade: Interface de seleção de data modular que funciona em todas as plataformas.
  */
 const CustomDatePicker = ({ value, onChange, label, theme, isDarkTheme, showPicker, setShowPicker }) => {
     if (Platform.OS === 'web') {
@@ -60,12 +64,13 @@ const CustomDatePicker = ({ value, onChange, label, theme, isDarkTheme, showPick
                     style={{
                         padding: '14px',
                         borderRadius: '12px',
-                        border: `1px solid ${theme.subText}30`,
+                        border: `1.5px solid ${theme.subText}40`,
                         backgroundColor: isDarkTheme ? '#2a2a2a' : '#fff',
-                        color: isDarkTheme ? '#fff' : '#000',
+                        color: theme.text,
                         width: '100%',
                         fontSize: '14px',
-                        outline: 'none'
+                        outline: 'none',
+                        marginTop: '5px'
                     }}
                 />
             </View>
@@ -95,7 +100,10 @@ const CustomDatePicker = ({ value, onChange, label, theme, isDarkTheme, showPick
                     value={value} 
                     mode="date" 
                     display="default" 
-                    onChange={(e, d) => { setShowPicker(false); if(d) onChange(e, d); }} 
+                    onChange={(e, d) => { 
+                        setShowPicker(false); 
+                        if(d) onChange(e, d); 
+                    }} 
                 />
             )}
         </View>
@@ -103,15 +111,17 @@ const CustomDatePicker = ({ value, onChange, label, theme, isDarkTheme, showPick
 };
 
 /**
- * TELA PRINCIPAL: ExpensesScreen
- * Descrição: Gerenciamento de despesas com suporte a agrupamento de parcelas (Estilo Hambúrguer).
- * Implementação: Agrupamento dinâmico para evitar poluição visual.
+ * TELA: ExpensesScreen
+ * Descrição: Central de gerenciamento de despesas integrada com o banco de dados RDS AWS.
+ * Correção: Recuperação da aba "Parceladas" (Estilo Hambúrguer) e filtros Web.
  */
 export default function ExpensesScreen({ route, navigation }) {
     const { api } = useContext(AuthContext);
     const { theme, isDarkTheme } = useContext(ThemeContext);
     
-    // Estados de Dados
+    // ==========================================
+    // 1. ESTADOS DE DADOS (SINCRONIA BACKEND)
+    // ==========================================
     const [despesas, setDespesas] = useState([]);
     const [categorias, setCategorias] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -121,16 +131,20 @@ export default function ExpensesScreen({ route, navigation }) {
     
     const filterAnim = useRef(new Animated.Value(0)).current;
 
-    // Estados de Filtro
+    // ==========================================
+    // 2. CONFIGURAÇÕES DE FILTRAGEM TEMPORAL
+    // ==========================================
     const [monthStart, setMonthStart] = useState(new Date().getMonth() + 1);
     const [yearStart, setYearStart] = useState(new Date().getFullYear());
     const [monthEnd, setMonthEnd] = useState(new Date().getMonth() + 1);
     const [yearEnd, setYearEnd] = useState(new Date().getFullYear());
 
-    // Estados de Modais
+    // ==========================================
+    // 3. ESTADOS DE MODAIS E WORKFLOW
+    // ==========================================
     const [expenseModalVisible, setExpenseModalVisible] = useState(false);
-    const [replicateModalVisible, setReplicateModalVisible] = useState(false);
     const [groupListModalVisible, setGroupListModalVisible] = useState(false);
+    const [replicateModalVisible, setReplicateModalVisible] = useState(false);
     const [syncModalVisible, setSyncModalVisible] = useState(false); 
     
     const [isEditing, setIsEditing] = useState(false);
@@ -139,13 +153,12 @@ export default function ExpensesScreen({ route, navigation }) {
     const [selectedGroupData, setSelectedGroupData] = useState(null);
     
     const [replicateProgress, setReplicateProgress] = useState(0);
-    const [syncLabel, setSyncLabel] = useState('Iniciando...');
-    
+    const [syncLabel, setSyncLabel] = useState('Sincronizando...');
+
     const [newValueToReplicate, setNewValueToReplicate] = useState('');
     const [newNameToReplicate, setNewNameToReplicate] = useState('');
     const [newCategoryToReplicate, setNewCategoryToReplicate] = useState('outros');
     
-    // NOVO: CLASSIFICAÇÃO PARA ECONOMIA INTELIGENTE
     const [isEssencial, setIsEssencial] = useState(true); 
     const [isParcelado, setIsParcelado] = useState(false);
     
@@ -163,12 +176,9 @@ export default function ExpensesScreen({ route, navigation }) {
         current: 'Mês Atual', 
         overdue: 'Em Atraso', 
         paid: 'Pagas', 
-        parcelados: 'Parcelamentos' 
+        parcelados: 'Parceladas' 
     };
 
-    /**
-     * fetchData: Sincroniza dados com o RDS AWS.
-     */
     const fetchData = async () => {
         try {
             setRefreshing(true);
@@ -178,8 +188,12 @@ export default function ExpensesScreen({ route, navigation }) {
             ]);
             setDespesas(despRes.data || []);
             setCategorias(catRes.data || []);
-        } catch (error) { console.error("Erro RDS:", error); } 
-        finally { setLoading(false); setRefreshing(false); }
+        } catch (error) { 
+            console.error("Erro na carga RDS:", error);
+        } finally { 
+            setLoading(false); 
+            setRefreshing(false); 
+        }
     };
 
     useFocusEffect(useCallback(() => { fetchData(); }, []));
@@ -189,16 +203,22 @@ export default function ExpensesScreen({ route, navigation }) {
             const dtStatus = item.data_pagamento ? null : new Date().toISOString().split('T')[0];
             await api.put(`/despesas/${item.id}/pagar`, { data_pagamento: dtStatus });
             fetchData();
-        } catch (e) { Alert.alert("Erro", "Falha ao liquidar despesa."); }
+        } catch (e) { Alert.alert("Erro", "Falha na transação."); }
     };
 
     const handleDelete = (id) => {
-        const confirmDel = async () => { 
+        const confirmDelete = async () => { 
             try { await api.delete(`/despesas/${id}`); fetchData(); } 
-            catch (e) { Alert.alert("Erro", "Erro ao apagar registro."); }
+            catch (e) { Alert.alert("Erro", "Falha ao apagar registro."); }
         };
-        if (Platform.OS === 'web') { if(confirm("Confirmar exclusão?")) confirmDel(); } 
-        else { Alert.alert("Excluir", "Remover despesa?", [{text: "Voltar"}, {text: "Apagar", onPress: confirmDel, style: 'destructive'}]); }
+        if (Platform.OS === 'web') { 
+            if(window.confirm("Deseja apagar esta despesa?")) confirmDelete(); 
+        } else { 
+            Alert.alert("Confirmar Exclusão", "Deseja continuar?", [
+                {text: "Voltar"}, 
+                {text: "Sim, Excluir", onPress: confirmDelete, style: 'destructive'}
+            ]); 
+        }
     };
 
     const handleSaveExpense = async () => {
@@ -220,11 +240,11 @@ export default function ExpensesScreen({ route, navigation }) {
             }
             setExpenseModalVisible(false);
             fetchData();
-        } catch (e) { Alert.alert("Erro", "Falha ao gravar."); }
+        } catch (e) { Alert.alert("Erro", "Falha ao salvar no banco."); }
     };
 
     /**
-     * handleSaveReplicate: Sincronização em lote para grupos de parcelas.
+     * handleSaveReplicate: Sincronização em lote para grupos de parcelas (Hambúrguer).
      */
     const handleSaveReplicate = async () => {
         const vNum = parseFloat(newValueToReplicate.trim().replace(',', '.'));
@@ -245,26 +265,25 @@ export default function ExpensesScreen({ route, navigation }) {
             const totalCount = pAlvo.length;
 
             for (let i = 0; i < totalCount; i++) {
-                const itemAtu = pAlvo[i];
                 const seq = i + 1;
                 setSyncLabel(`Sincronizando ${seq} de ${totalCount}...`);
                 
-                await api.put(`/despesas/${itemAtu.id}`, {
+                await api.put(`/despesas/${pAlvo[i].id}`, {
                     nome: `${newNameToReplicate.trim()} (${seq}/${totalCount})`,
                     valor: vNum,
-                    data_vencimento: itemAtu.data_vencimento.split('T')[0],
+                    data_vencimento: pAlvo[i].data_vencimento.split('T')[0],
                     categoria: newCategoryToReplicate,
                     essencial: isEssencial ? 1 : 0
                 });
                 
-                await new Promise(r => setTimeout(r, 150));
+                await new Promise(r => setTimeout(r, 120));
                 setReplicateProgress(seq / totalCount);
             }
             
             setSyncModalVisible(false);
             setGroupListModalVisible(false);
             fetchData();
-        } catch (err) { setSyncModalVisible(false); Alert.alert("Erro", "Conexão falhou."); }
+        } catch (err) { setSyncModalVisible(false); Alert.alert("Erro", "Conexão AWS RDS falhou."); }
     };
 
     const getFilteredData = () => {
@@ -275,7 +294,11 @@ export default function ExpensesScreen({ route, navigation }) {
             if(pV.length < 3) return false;
             const dV = new Date(parseInt(pV[0]), parseInt(pV[1])-1, parseInt(pV[2]), 12, 0, 0);
             
-            if (selectedTab === 'all') return dV >= new Date(yearStart, monthStart-1, 1) && dV <= new Date(yearEnd, monthEnd, 0, 23, 59, 59);
+            if (selectedTab === 'all') {
+                const dataInicioFiltro = new Date(yearStart, monthStart-1, 1);
+                const dataFimFiltro = new Date(yearEnd, monthEnd, 0, 23, 59, 59);
+                return dV >= dataInicioFiltro && dV <= dataFimFiltro;
+            }
             if (selectedTab === 'current') return dV.getMonth() === dH.getMonth() && dV.getFullYear() === dH.getFullYear();
             if (selectedTab === 'overdue') return dV < dH && d.data_pagamento === null;
             if (selectedTab === 'paid') return d.data_pagamento !== null;
@@ -322,28 +345,18 @@ export default function ExpensesScreen({ route, navigation }) {
                     <select 
                         value={val} 
                         onChange={(e) => setVal(parseInt(e.target.value))}
-                        style={{ background: 'transparent', color: theme.text, border: 'none', padding: '14px', width: '100%', outline: 'none', fontSize: '14px' }}
+                        style={{ background: 'transparent', color: theme.text, border: 'none', padding: '12px', width: '100%', outline: 'none', fontSize: '14px', cursor: 'pointer' }}
                     >
                         {items.map((item, idx) => (
-                            <option key={idx} value={typeof item === 'string' && items.length === 12 ? idx + 1 : item}>{item}</option>
+                            <option key={idx} value={typeof item === 'string' && items.length === 12 ? idx + 1 : item} style={{ backgroundColor: isDarkTheme ? '#2a2a2a' : '#fff', color: theme.text }}>
+                                {item}
+                            </option>
                         ))}
                     </select>
                 ) : (
-                    <Picker
-                        selectedValue={val}
-                        onValueChange={(v) => setVal(v)}
-                        style={{ color: theme.text, height: 50, width: '100%' }}
-                        dropdownIconColor={theme.text}
-                        mode="dropdown"
-                    >
+                    <Picker selectedValue={val} onValueChange={(v) => setVal(v)} style={{ color: theme.text, height: 50, width: '100%' }} dropdownIconColor={theme.text} mode="dropdown">
                         {items.map((item, idx) => (
-                            <Picker.Item 
-                                key={idx} 
-                                label={String(item)} 
-                                value={typeof item === 'string' && items.length === 12 ? idx + 1 : item} 
-                                color={isDarkTheme ? "#FFF" : "#000"} 
-                                style={{ fontSize: 13, backgroundColor: isDarkTheme ? '#2a2a2a' : '#fff' }}
-                            />
+                            <Picker.Item key={idx} label={String(item)} value={typeof item === 'string' && items.length === 12 ? idx + 1 : item} color={isDarkTheme ? "#FFF" : "#000"} style={{ fontSize: 13, backgroundColor: isDarkTheme ? '#2a2a2a' : '#fff' }} />
                         ))}
                     </Picker>
                 )}
@@ -352,8 +365,7 @@ export default function ExpensesScreen({ route, navigation }) {
     );
 
     /**
-     * LÓGICA DE AGRUPAMENTO (ESTILO HAMBÚRGUER / ACORDEÃO)
-     * Agrupa despesas que pertencem ao mesmo parcelamento.
+     * renderParceladosTab: Lógica de agrupamento (Hambúrguer) corrigida.
      */
     const renderParceladosTab = () => {
         const agrp = {};
@@ -362,8 +374,7 @@ export default function ExpensesScreen({ route, navigation }) {
                 agrp[it.compra_parcelada_id] = { 
                     id: it.compra_parcelada_id, 
                     nome: it.nome.split(' (')[0], 
-                    total: 0, 
-                    items: [] 
+                    total: 0, items: [] 
                 };
             }
             agrp[it.compra_parcelada_id].items.push(it);
@@ -374,7 +385,7 @@ export default function ExpensesScreen({ route, navigation }) {
             return (
                 <View style={styles.emptyStateBoxContainer}>
                     <MaterialCommunityIcons name="layers-off" size={100} color={theme.subText + '25'} />
-                    <Text style={{ color: theme.subText, fontSize: 14, marginTop: 15 }}>Sem grupos parcelados.</Text>
+                    <Text style={{ color: theme.subText, fontSize: 14, marginTop: 15 }}>Sem grupos de parcelamento.</Text>
                 </View>
             );
         }
@@ -398,7 +409,7 @@ export default function ExpensesScreen({ route, navigation }) {
                         <View style={{ flex: 1, marginLeft: 15 }}>
                             <Text style={[styles.textGroupTitle, { color: theme.text }]}>{gp.nome}</Text>
                             <Paragraph style={{ color: theme.primary, fontWeight: 'bold', fontSize: 12 }}>
-                                Total: R$ {gp.total.toFixed(2)} | Qtd: {gp.items.length}
+                                Total: R$ {gp.total.toFixed(2)} | Parcelas: {gp.items.length}
                             </Paragraph>
                         </View>
                         <MaterialCommunityIcons name="chevron-right-circle" size={22} color={theme.subText} />
@@ -411,12 +422,11 @@ export default function ExpensesScreen({ route, navigation }) {
     const renderParcelaItem = ({ item }) => (
         <List.Item
             title={item.nome}
-            description={`Vencimento: ${new Date(item.data_vencimento).toLocaleDateString('pt-BR')} • ${item.categoria || 'outros'}`}
+            description={`R$ ${parseFloat(item.valor).toFixed(2)} • Venc: ${new Date(item.data_vencimento).toLocaleDateString('pt-BR')}`}
             titleStyle={{ color: theme.text, fontSize: 15, fontWeight: 'bold' }}
             left={props => <Avatar.Icon {...props} size={40} icon={getCategoryIcon(item.categoria)} style={{ backgroundColor: theme.primary + '15' }} color={theme.primary} />}
             right={() => (
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Text style={{ color: theme.text, fontWeight: '900', fontSize: 15, marginRight: 5 }}>R$ {parseFloat(item.valor).toFixed(2)}</Text>
                     <IconButton icon="pencil" size={18} iconColor={theme.primary} onPress={() => { setGroupListModalVisible(false); openEdit(item); }} />
                     <IconButton icon={item.data_pagamento ? "check-circle" : "circle-outline"} iconColor={item.data_pagamento ? '#4CAF50' : theme.subText} onPress={() => togglePayment(item)} />
                 </View>
@@ -429,23 +439,21 @@ export default function ExpensesScreen({ route, navigation }) {
 
     return (
         <View style={[styles.fullScreenMain, { backgroundColor: theme.background }]}>
-            {/* CABEÇALHO */}
             <Surface style={[styles.headerSurfaceBox, { backgroundColor: theme.background }]} elevation={4}>
                 <Text style={[styles.headerMainTitle, { color: theme.text }]}>Minhas Despesas</Text>
-                <Paragraph style={{ color: theme.subText, textAlign: 'center', fontSize: 12 }}>Gestão avançada de fluxo financeiro</Paragraph>
+                <Paragraph style={{ color: theme.subText, textAlign: 'center', fontSize: 12 }}>Gestão financeira RDS AWS</Paragraph>
             </Surface>
             
-            {/* DASHBOARD DE RESUMO */}
             <Card style={[styles.summaryDashboardCardFrame, { backgroundColor: isDarkTheme ? '#181818' : '#f0faff' }]}>
                 <Card.Content>
-                    <Text style={{ color: theme.subText, fontWeight: 'bold', fontSize: 11, letterSpacing: 0.8 }}>TOTAL NA VISÃO</Text>
-                    <Title style={{ fontSize: 34, color: theme.primary, fontWeight: '900', marginVertical: 4 }}>
+                    <Text style={{ color: theme.subText, fontWeight: 'bold', fontSize: 11 }}>TOTAL NA VISÃO (FILTRADO)</Text>
+                    <Title style={{ fontSize: 36, color: theme.primary, fontWeight: '900' }}>
                         R$ {(selectedTab === 'parcelados' ? despesas.filter(d => d.compra_parcelada_id !== null) : getFilteredData()).reduce((s, d) => s + parseFloat(d.valor), 0).toFixed(2)}
                     </Title>
                     <Divider style={styles.summaryDividerLine} />
                     <View style={styles.paidStatusRowBox}>
                         <Avatar.Icon size={24} icon="check-decagram" color="#4CAF50" style={{ backgroundColor: '#4CAF5015' }} />
-                        <Text style={{ color: '#4CAF50', fontWeight: 'bold', marginLeft: 10, fontSize: 16 }}>
+                        <Text style={{ color: '#4CAF50', fontWeight: 'bold', marginLeft: 10 }}>
                             Pagas: R$ {(selectedTab === 'parcelados' ? despesas.filter(d => d.compra_parcelada_id !== null && d.data_pagamento) : getFilteredData().filter(d => d.data_pagamento)).reduce((s, d) => s + parseFloat(d.valor), 0).toFixed(2)}
                         </Text>
                     </View>
@@ -453,47 +461,64 @@ export default function ExpensesScreen({ route, navigation }) {
             </Card>
 
             <View style={styles.actionBarContainerBox}>
-                <Menu 
-                    visible={menuVisible} 
-                    onDismiss={() => setMenuVisible(false)} 
-                    anchor={<Button mode="contained-tonal" onPress={() => setMenuVisible(true)} icon="layers-triple-outline" style={styles.btnSelectorTabFrame} labelStyle={{ fontSize: 12 }}>{tabLabels[selectedTab]}</Button>}
-                >
-                    {Object.keys(tabLabels).map(k => <Menu.Item key={k} onPress={() => { setSelectedTab(k); setMenuVisible(false); }} title={tabLabels[k]} titleStyle={{ fontSize: 14 }} />)}
+                <Menu visible={menuVisible} onDismiss={() => setMenuVisible(false)} anchor={<Button mode="contained-tonal" onPress={() => setMenuVisible(true)} icon="layers-triple-outline" style={styles.btnSelectorTabFrame}>{tabLabels[selectedTab]}</Button>}>
+                    {Object.keys(tabLabels).map(k => <Menu.Item key={k} onPress={() => { setSelectedTab(k); setMenuVisible(false); }} title={tabLabels[k]} />)}
                 </Menu>
-                {selectedTab === 'all' && (
-                    <IconButton icon={isFilterVisible ? "chevron-up-circle-outline" : "calendar-search"} size={30} iconColor={theme.primary} onPress={toggleFilters} />
-                )}
+                {selectedTab === 'all' && <IconButton icon={isFilterVisible ? "chevron-up-circle-outline" : "calendar-search"} size={32} iconColor={theme.primary} onPress={toggleFilters} />}
             </View>
 
+            {selectedTab === 'all' && (
+                <Animated.View style={[styles.filterDrawerFrameBox, { height: drawerHeight }]}>
+                    <Surface style={styles.filterInternalSurfaceBox} elevation={1}>
+                        <View style={styles.filterSectionFrame}>
+                            <Text style={[styles.labelFilterSmall, { color: theme.primary }]}>DATA INICIAL:</Text>
+                            <View style={styles.rowPickerFilterGroup}>{renderPicker(monthStart, setMonthStart, listMonths)}{renderPicker(yearStart, setYearStart, listYears)}</View>
+                        </View>
+                        <Divider style={{ marginVertical: 12, backgroundColor: theme.subText + '15' }} />
+                        <View style={styles.filterSectionFrame}>
+                            <Text style={[styles.labelFilterSmall, { color: theme.primary }]}>DATA FINAL:</Text>
+                            <View style={styles.rowPickerFilterGroup}>{renderPicker(monthEnd, setMonthEnd, listMonths)}{renderPicker(yearEnd, setYearEnd, listYears)}</View>
+                        </View>
+                        <Button mode="contained" onPress={toggleFilters} style={styles.btnExecuteFilterNow}>APLICAR FILTRO</Button>
+                    </Surface>
+                </Animated.View>
+            )}
+
             <ScrollView contentContainerStyle={styles.mainScrollableContentBox} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchData} colors={[theme.primary]} />}>
-                {selectedTab === 'parcelados' ? renderParceladosTab() : getFilteredData().map(item => (
-                    <Card key={item.id} style={[styles.expenseItemCardFrame, { backgroundColor: theme.cardBackground, borderLeftColor: item.data_pagamento ? '#4CAF50' : theme.danger }]}>
-                        <Card.Title 
-                            title={item.nome} 
-                            subtitle={`${item.data_vencimento.split('T')[0].split('-').reverse().join('/')} • ${item.categoria}`} 
-                            left={() => <Avatar.Icon size={42} icon={getCategoryIcon(item.categoria)} color="white" style={{ backgroundColor: theme.primary }} />} 
-                            right={() => (
-                                <View style={styles.cardActionsIconRow}>
-                                    <IconButton icon="pencil-outline" iconColor={theme.primary} size={20} onPress={() => openEdit(item)} />
-                                    <IconButton icon="trash-can-outline" iconColor={theme.danger} size={20} onPress={() => handleDelete(item.id)} />
+                {selectedTab === 'parcelados' ? renderParceladosTab() : (
+                    getFilteredData().length > 0 ? getFilteredData().map(item => (
+                        <Card key={item.id} style={[styles.expenseItemCardFrame, { backgroundColor: theme.cardBackground, borderLeftColor: item.data_pagamento ? '#4CAF50' : theme.danger }]}>
+                            <Card.Title 
+                                title={item.nome} 
+                                subtitle={`${item.data_vencimento.split('T')[0].split('-').reverse().join('/')} • ${item.categoria}`} 
+                                left={() => <Avatar.Icon size={42} icon={getCategoryIcon(item.categoria)} color="white" style={{ backgroundColor: theme.primary }} />} 
+                                right={() => (
+                                    <View style={styles.cardActionsIconRow}>
+                                        <IconButton icon="pencil-outline" iconColor={theme.primary} size={22} onPress={() => openEdit(item)} />
+                                        <IconButton icon="trash-can-outline" iconColor={theme.danger} size={22} onPress={() => handleDelete(item.id)} />
+                                    </View>
+                                )} 
+                                titleStyle={{ color: theme.text, fontWeight: 'bold', fontSize: 16 }}
+                            />
+                            <Card.Content style={styles.expenseValueContainerBox}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                    <Text style={[styles.expenseValueTextMain, { color: theme.text }]}>R$ {parseFloat(item.valor).toFixed(2)}</Text>
+                                    {!item.essencial && <Avatar.Icon size={24} icon="alert-decagram" color="#FF9800" style={{ backgroundColor: 'transparent', marginLeft: 10 }} />}
                                 </View>
-                            )} 
-                            titleStyle={{ color: theme.text, fontWeight: 'bold', fontSize: 15 }} subtitleStyle={{ fontSize: 10 }}
-                        />
-                        <Card.Content style={styles.expenseValueContainerBox}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                <Text style={[styles.expenseValueTextMain, { color: theme.text }]}>R$ {parseFloat(item.valor).toFixed(2)}</Text>
-                                {!item.essencial && <Avatar.Icon size={24} icon="alert-decagram" color="#FF9800" style={{ backgroundColor: 'transparent', marginLeft: 10 }} />}
-                            </View>
-                            <Button mode={item.data_pagamento ? "outlined" : "contained"} style={[styles.btnActionPayNowBox, { borderColor: item.data_pagamento ? '#4CAF50' : 'transparent' }]} onPress={() => togglePayment(item)} textColor={item.data_pagamento ? '#4CAF50' : '#fff'} labelStyle={{ fontSize: 11, fontWeight: 'bold' }}>{item.data_pagamento ? "PAGA" : "PAGAR"}</Button>
-                        </Card.Content>
-                    </Card>
-                ))}
+                                <Button mode={item.data_pagamento ? "outlined" : "contained"} onPress={() => togglePayment(item)} textColor={item.data_pagamento ? '#4CAF50' : '#fff'}>{item.data_pagamento ? "PAGA" : "PAGAR"}</Button>
+                            </Card.Content>
+                        </Card>
+                    )) : (
+                        <View style={styles.emptyStateBoxContainer}>
+                            <MaterialCommunityIcons name="file-search-outline" size={100} color={theme.subText + '25'} />
+                            <Text style={{ color: theme.subText, fontSize: 14, marginTop: 15 }}>Nenhuma despesa encontrada.</Text>
+                        </View>
+                    )
+                )}
             </ScrollView>
 
-            <FAB style={[styles.floatingAddBtnFrame, { backgroundColor: theme.primary }]} icon="plus-thick" color="white" label="NOVA" small onPress={() => { setIsEditing(false); setIsParcelado(false); setIsEssencial(true); setFormData({ nome: '', valor: '', data_vencimento: new Date(), categoria: 'outros', numero_parcelas: '1' }); setExpenseModalVisible(true); }} />
+            <FAB style={[styles.floatingAddBtnFrame, { backgroundColor: theme.primary }]} icon="plus" color="white" label="NOVA" onPress={() => { setIsEditing(false); setIsParcelado(false); setIsEssencial(true); setFormData({ nome: '', valor: '', data_vencimento: new Date(), categoria: 'outros', numero_parcelas: '1' }); setExpenseModalVisible(true); }} />
 
-            {/* MODAL DETALHE DO GRUPO (ESTILO HAMBÚRGUER) */}
             <Modal visible={groupListModalVisible} animationType="slide">
                 <View style={[styles.fullScreenMain, { backgroundColor: theme.background, padding: 20 }]}>
                     <View style={styles.rowModalHeader}>
@@ -508,19 +533,12 @@ export default function ExpensesScreen({ route, navigation }) {
                 </View>
             </Modal>
 
-            {/* MODAL CADASTRO PREMIUM */}
-            <Modal visible={expenseModalVisible} animationType="fade" transparent={true} onRequestClose={() => setExpenseModalVisible(false)}>
+            {/* MODAL CADASTRO (COM CALENDÁRIO WEB CORRIGIDO) */}
+            <Modal visible={expenseModalVisible} animationType="fade" transparent={true}>
                 <View style={styles.modalBackgroundOverlayBox}>
                     <Surface style={[styles.modalContentSurfacePremium, { backgroundColor: theme.cardBackground }]} elevation={5}>
                         <Title style={[styles.modalHeaderTitleMain, { color: theme.text }]}>{isEditing ? 'Editar Despesa' : 'Novo Lançamento'}</Title>
                         
-                        {!isEditing && (
-                            <View style={styles.rowToggleSwitchContainer}>
-                                <Text style={{ color: theme.text, fontWeight: 'bold', fontSize: 14 }}>Esta compra foi parcelada?</Text>
-                                <Switch value={isParcelado} onValueChange={setIsParcelado} thumbColor={isParcelado ? theme.primary : "#ccc"} />
-                            </View>
-                        )}
-
                         <TextInput style={[styles.modalInputTxtBoxFrame, { color: theme.text, borderColor: theme.subText + '30', backgroundColor: isDarkTheme ? '#2a2a2a' : '#f8f8f8' }]} placeholder="Descrição" placeholderTextColor={theme.subText} value={formData.nome} onChangeText={t => setFormData({...formData, nome: t})} />
                         <TextInput style={[styles.modalInputTxtBoxFrame, { color: theme.text, borderColor: theme.subText + '30', backgroundColor: isDarkTheme ? '#2a2a2a' : '#f8f8f8' }]} placeholder="Valor R$" keyboardType="numeric" placeholderTextColor={theme.subText} value={formData.valor} onChangeText={t => setFormData({...formData, valor: t})} />
                         
@@ -531,39 +549,28 @@ export default function ExpensesScreen({ route, navigation }) {
                         <CustomDatePicker label="Vencimento" value={formData.data_vencimento} onChange={(e, d) => setFormData({...formData, data_vencimento: d})} theme={theme} isDarkTheme={isDarkTheme} showPicker={showDatePicker} setShowPicker={setShowDatePicker} />
 
                         <Surface style={[styles.essencialControlCardBox, { backgroundColor: isDarkTheme ? '#252525' : '#f2f2f2' }]} elevation={1}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                                 <Avatar.Icon size={36} icon={isEssencial ? "check-decagram-outline" : "alert-decagram-outline"} color={isEssencial ? "#4CAF50" : "#FF9800"} style={{ backgroundColor: 'transparent' }} />
-                                <View style={{ marginLeft: 12 }}>
-                                    <Text style={{ color: theme.text, fontWeight: 'bold', fontSize: 14 }}>Essencial?</Text>
-                                    <Text style={{ color: theme.subText, fontSize: 10 }}>{isEssencial ? "Conta necessária" : "Supérfluo"}</Text>
-                                </View>
+                                <Text style={{ color: theme.text, marginLeft: 12, fontWeight: 'bold' }}>Essencial?</Text>
                             </View>
                             <Switch value={isEssencial} onValueChange={setIsEssencial} color={theme.primary} />
                         </Surface>
 
-                        <Text style={[styles.miniLabelPickerTxtBox, { color: theme.text, marginTop: 15 }]}>Categoria:</Text>
-                        <View style={[styles.pickerContainerFrameBox, { backgroundColor: isDarkTheme ? '#2a2a2a' : '#f5f5f5' }]}>
-                            <Picker selectedValue={formData.categoria} onValueChange={(v) => setFormData({...formData, categoria: v})} style={{ color: theme.text }} dropdownIconColor={theme.text} mode="dropdown">
-                                {categorias.map(c => <Picker.Item key={c.id} label={c.nome} value={c.nome} style={{ fontSize: 13, backgroundColor: isDarkTheme ? '#2a2a2a' : '#fff' }} />)}
-                            </Picker>
-                        </View>
-
                         <View style={styles.modalActionButtonsRowContainer}>
-                            <Button mode="contained" onPress={handleSaveExpense} style={styles.btnPrimarySaveNow} labelStyle={{fontWeight: '900', fontSize: 14}}>SALVAR</Button>
+                            <Button mode="contained" onPress={handleSaveExpense} style={styles.btnPrimarySaveNow}>SALVAR</Button>
                             <Button mode="text" onPress={() => setExpenseModalVisible(false)} textColor={theme.danger} style={styles.btnSecondaryCancelNow}>FECHAR</Button>
                         </View>
                     </Surface>
                 </View>
             </Modal>
-
-            {/* MODAL DE PROGRESSO (MANTÉM MAIS DE 600 LINHAS) */}
+            
+            {/* MODAL DE SINCRONIZAÇÃO */}
             <Modal visible={syncModalVisible} transparent={true}>
                 <View style={styles.modalBackgroundOverlayBox}>
-                    <Surface style={[styles.syncProgressSurfaceFrame, { backgroundColor: theme.cardBackground }]} elevation={8}>
-                        <ActivityIndicator size={80} color={theme.primary} />
-                        <Text style={{ color: theme.text, marginTop: 25, fontWeight: '900', fontSize: 22 }}>{Math.round(replicateProgress * 100)}%</Text>
-                        <ProgressBar progress={replicateProgress} color={theme.primary} style={styles.syncProgressBarLineFrame} />
-                        <Text style={{color: theme.subText, marginTop: 15, textAlign: 'center', fontWeight: 'bold', fontSize: 13}}>{syncLabel}</Text>
+                    <Surface style={styles.syncModalSurface} elevation={5}>
+                        <ActivityIndicator size="large" color={theme.primary} />
+                        <Text style={{ color: theme.text, marginTop: 15, fontWeight: 'bold' }}>{syncLabel}</Text>
+                        <ProgressBar progress={replicateProgress} color={theme.primary} style={{ height: 10, borderRadius: 5, marginTop: 15, width: '100%' }} />
                     </Surface>
                 </View>
             </Modal>
@@ -574,45 +581,44 @@ export default function ExpensesScreen({ route, navigation }) {
 const styles = StyleSheet.create({
     fullScreenMain: { flex: 1 },
     loadingCenter: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    headerSurfaceBox: { paddingVertical: 25, borderBottomLeftRadius: 35, borderBottomRightRadius: 35, paddingHorizontal: 20 },
-    headerMainTitle: { fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 5 },
+    headerSurfaceBox: { paddingVertical: 25, borderBottomLeftRadius: 35, borderBottomRightRadius: 35, alignItems: 'center' },
+    headerMainTitle: { fontSize: 24, fontWeight: 'bold' },
     summaryDashboardCardFrame: { margin: 15, borderRadius: 28, elevation: 12, padding: 5 },
     summaryDividerLine: { marginVertical: 10, height: 1.5, backgroundColor: 'rgba(0,0,0,0.06)' },
     paidStatusRowBox: { flexDirection: 'row', alignItems: 'center' },
-    actionBarContainerBox: { paddingHorizontal: 22, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
-    btnSelectorTabFrame: { borderRadius: 14, height: 40, justifyContent: 'center' },
-    filterDrawerFrameBox: { overflow: 'hidden', paddingHorizontal: 15, marginBottom: 25 },
-    pickerBoxFrameAdjusted: { flex: 1, minHeight: 60 },
-    pickerSurfaceAdjusted: { borderWidth: 1.5, borderColor: '#88888830', borderRadius: 14, height: 52, justifyContent: 'center' },
+    actionBarContainerBox: { paddingHorizontal: 22, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    btnSelectorTabFrame: { borderRadius: 14 },
     mainScrollableContentBox: { padding: 15, paddingBottom: 220 },
-    expenseItemCardFrame: { marginBottom: 18, borderLeftWidth: 12, elevation: 6, borderRadius: 22, overflow: 'hidden' },
-    cardActionsIconRow: { flexDirection: 'row', alignItems: 'center' },
-    expenseValueContainerBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
-    expenseValueTextMain: { fontSize: 24, fontWeight: '900', letterSpacing: -1 },
-    btnActionPayNowBox: { borderRadius: 12, minWidth: 95, height: 40, justifyContent: 'center' },
-    floatingAddBtnFrame: { position: 'absolute', right: 25, bottom: 35, elevation: 18, padding: 4, borderRadius: 15 },
-    modalBackgroundOverlayBox: { flex: 1, backgroundColor: 'rgba(0,0,0,0.94)', justifyContent: 'center', padding: 20 },
-    modalContentSurfacePremium: { padding: 30, borderRadius: 35, elevation: 25 },
+    expenseItemCardFrame: { marginBottom: 18, borderLeftWidth: 12, elevation: 6, borderRadius: 22 },
+    cardActionsIconRow: { flexDirection: 'row' },
+    expenseValueContainerBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    expenseValueTextMain: { fontSize: 24, fontWeight: '900' },
+    floatingAddBtnFrame: { position: 'absolute', right: 25, bottom: 35, elevation: 18, borderRadius: 15 },
+    modalBackgroundOverlayBox: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', padding: 20 },
+    modalContentSurfacePremium: { padding: 30, borderRadius: 35 },
     modalHeaderTitleMain: { textAlign: 'center', fontSize: 22, fontWeight: 'bold', marginBottom: 20 },
-    modalInputTxtBoxFrame: { borderWidth: 1.5, padding: 14, borderRadius: 14, marginBottom: 15, fontSize: 16 },
+    modalInputTxtBoxFrame: { borderWidth: 1.5, padding: 14, borderRadius: 16, marginBottom: 15, fontSize: 16 },
     modalActionButtonsRowContainer: { flexDirection: 'row', gap: 15, marginTop: 25 },
-    btnPrimarySaveNow: { flex: 1.4, height: 50, justifyContent: 'center', borderRadius: 14 },
+    btnPrimarySaveNow: { flex: 1, height: 50, justifyContent: 'center', borderRadius: 15 },
     btnSecondaryCancelNow: { flex: 1, height: 50, justifyContent: 'center' },
-    rowToggleSwitchContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, paddingHorizontal: 10 },
-    essencialControlCardBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderRadius: 18, marginBottom: 5, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
-    miniLabelPickerTxtBox: { fontSize: 12, fontWeight: 'bold', marginBottom: 8, marginLeft: 8 },
-    pickerContainerFrameBox: { borderWidth: 1.5, borderColor: '#88888830', borderRadius: 16, height: 55, justifyContent: 'center', overflow: 'hidden' },
+    filterDrawerFrameBox: { overflow: 'hidden', paddingHorizontal: 15, marginBottom: 20 },
+    filterInternalSurfaceBox: { padding: 18, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.04)' },
+    filterSectionFrame: { marginBottom: 8 },
+    labelFilterSmall: { fontWeight: '900', fontSize: 10, marginBottom: 8, letterSpacing: 1 },
+    rowPickerFilterGroup: { flexDirection: 'row', gap: 10 },
+    pickerBoxFrameAdjusted: { flex: 1, minHeight: 55 },
+    pickerSurfaceAdjusted: { borderWidth: 1.5, borderColor: '#88888830', borderRadius: 14, height: 50, justifyContent: 'center', overflow: 'hidden' },
+    btnExecuteFilterNow: { marginTop: 15, borderRadius: 12, height: 45, justifyContent: 'center' },
+    essencialControlCardBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderRadius: 18, marginBottom: 15 },
     cardGroupOuter: { marginBottom: 18, borderRadius: 22, elevation: 8 },
-    cardGroupInner: { flexDirection: 'row', alignItems: 'center', padding: 18 },
-    boxIconSurface: { padding: 12, borderRadius: 15 },
+    cardGroupInner: { flexDirection: 'row', alignItems: 'center', padding: 10 },
     textGroupTitle: { fontSize: 18, fontWeight: 'bold' },
-    rowModalHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 25 },
-    syncProgressSurfaceFrame: { padding: 45, borderRadius: 35, alignItems: 'center', width: '90%', alignSelf: 'center' },
-    syncProgressBarLineFrame: { height: 12, borderRadius: 6, width: '100%', marginTop: 30 },
+    rowModalHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+    syncModalSurface: { padding: 30, borderRadius: 25, width: '80%', alignSelf: 'center', alignItems: 'center' },
     datePickerWebWrapper: { marginBottom: 20 },
     datePickerMobileWrapper: { marginBottom: 20 },
     dateDisplayRowContainer: { flexDirection: 'row', alignItems: 'center' },
-    miniLabelTxt: { fontSize: 12, fontWeight: 'bold', marginBottom: 8, marginLeft: 5 },
-    emptyStateBoxContainer: { padding: 100, alignItems: 'center', justifyContent: 'center', opacity: 0.4 },
-    inputFrameAdjusted: { borderWidth: 1.5, padding: 14, borderRadius: 14, height: 55 }
+    miniLabelTxt: { fontSize: 12, fontWeight: 'bold', marginLeft: 5 },
+    inputFrameAdjusted: { borderWidth: 1.5, padding: 14, borderRadius: 16, height: 55, justifyContent: 'center' },
+    emptyStateBoxContainer: { padding: 100, alignItems: 'center', justifyContent: 'center', opacity: 0.4 }
 });
