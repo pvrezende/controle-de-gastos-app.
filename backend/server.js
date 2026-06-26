@@ -19,53 +19,34 @@ const dbConfig = {
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
-    port: process.env.DB_PORT || 3306
+    port: process.env.DB_PORT || 3306,
+
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0,
+
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 0
 };
-// ------------------------------------------
 
-let connection;
+const connection = mysql.createPool(dbConfig);
 
-// Função aprimorada para lidar com a conexão e reconexão
 async function initializeConnection() {
     try {
-        console.log("Tentando conectar ao banco de dados RDS...");
-        if (!dbConfig.host || !dbConfig.user || !dbConfig.password || !dbConfig.database) {
-            console.error("ERRO: Variáveis de ambiente (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME) não foram carregadas. Verifique seu arquivo .env");
-            setTimeout(initializeConnection, 5000);
+        console.log("Testando conexão com o banco de dados RDS...");
+        if (!process.env.DB_HOST || !process.env.DB_USER || !process.env.DB_PASSWORD || !process.env.DB_NAME) {
+            console.error("ERRO: Variáveis DB_HOST, DB_USER, DB_PASSWORD ou DB_NAME não carregadas no .env");
             return;
         }
-        
-        connection = await mysql.createConnection(dbConfig);
-        console.log("Conexão com o banco de dados RDS estabelecida com sucesso.");
 
-        connection.on("error", async (err) => {
-            console.error("Erro na conexão com o banco de dados:", err);
-            if (err.code === "PROTOCOL_CONNECTION_LOST" || err.code === "ECONNRESET" || err.code === "ETIMEDOUT" || err.code === "ENOTFOUND") {
-                console.log("Conexão perdida. Tentando reconectar ao banco de dados...");
-                setTimeout(handleDisconnect, 2000);
-            } else {
-                 console.error("Erro não recuperável na conexão. Verifique as credenciais e configurações de rede/security group.");
-            }
-        });
+        await connection.query("SELECT 1");
+        console.log("Pool de conexões com o banco RDS iniciado com sucesso.");
     } catch (err) {
-        console.error("Falha ao conectar ao banco de dados RDS na inicialização:", err);
-        console.error("Verifique se o endpoint, usuário, senha, nome do banco estão corretos no arquivo .env e se o Security Group do RDS permite acesso da EC2.");
-        setTimeout(initializeConnection, 5000);
+        console.error("Falha ao testar conexão com o banco RDS:", err);
     }
 }
 
-async function handleDisconnect() {
-    try {
-        if (connection && connection.end) {
-            await connection.end().catch(err => console.error("Erro ao fechar conexão antiga:", err));
-        }
-    } catch (err) {
-        console.error("Erro ao tentar fechar a conexão:", err);
-    } finally {
-        console.log("Tentando restabelecer a conexão...");
-        initializeConnection();
-    }
-}
+// ------------------------------------------
 
 // Middleware para verificar o token JWT
 const verifyToken = (req, res, next) => {

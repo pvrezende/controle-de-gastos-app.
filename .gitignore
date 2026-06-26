@@ -64,3 +64,8 @@ Thumbs.db
 
 ### TYPESCRIPT ###
 *.tsbuildinfo
+# Environment / backups
+.env
+backend/.env
+backend/.env_backup_rds
+backend/server_backup_antes_pool.js
